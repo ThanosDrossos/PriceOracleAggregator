@@ -140,7 +140,8 @@ constructor(
             uint256 sourceIndex = getSourceIndex(pair.sources[i]);
             try this.fetchPriceFromSource(sources[sourceIndex]) returns (int256 price) {
                 if (price > 0) {
-                    sum += normalizePrice(price, sources[sourceIndex].decimals) * int256(sources[sourceIndex].weight);
+                    int256 normalizedPrice = normalizePrice(price, sources[sourceIndex].decimals);
+                    sum += normalizedPrice * int256(sources[sourceIndex].weight);
                     totalWeight += sources[sourceIndex].weight;
                     validSources++;
                 }
@@ -287,11 +288,10 @@ constructor(
         }
         return price;
     }
-
     /**
      * @notice Get index of a source in the sources array
      */
-    function getSourceIndex(address oracle) internal view returns (uint256) {
+    function getSourceIndex(address oracle) public view returns (uint256) {
         for (uint256 i = 0; i < sources.length; i++) {
             if (sources[i].oracle == oracle) {
                 return i;
@@ -428,5 +428,12 @@ constructor(
      */
     function getAssetPairSources(string memory symbol) external view returns (address[] memory) {
         return assetPairs[symbol].sources;
+    }
+
+    /**
+     * @notice Returns all registered oracle sources
+     */
+    function getSources() external view returns (OracleSource[] memory) {
+        return sources;
     }
 }
