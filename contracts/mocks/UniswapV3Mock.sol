@@ -21,10 +21,19 @@ contract UniswapV3Mock is IUniswapV3Oracle {
         _tickCumulatives[1] = newTick;
     }
     
-    function observe(uint32[] calldata secondsAgos) external view override returns (
+    function observe(uint32[] calldata secondsAgos) external view returns (
         int56[] memory tickCumulatives,
         uint160[] memory secondsPerLiquidityCumulativeX128s
     ) {
         return (_tickCumulatives, _secondsPerLiquidityCumulativeX128s);
+    }
+    
+    // Implement other required interface methods
+    function consult(address tokenA, address tokenB, uint24 fee) external pure returns (uint256 price) {
+        return 3000 * 10**18; // Mock price for testing
+    }
+    
+    function getTWAP(address tokenA, address tokenB, uint24 fee, uint32 secondsAgo) external view returns (uint256 twap) {
+        return 3000 * 10**18; // Mock TWAP for testing
     }
 }

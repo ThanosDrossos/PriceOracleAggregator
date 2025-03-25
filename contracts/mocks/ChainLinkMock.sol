@@ -8,11 +8,12 @@ contract ChainlinkMock is IAggregatorV3 {
     string private _description;
     uint8 private _decimals;
 
-    constructor(int256 initialAnswer, string memory description, uint8 decimals) {
+    // Fix parameter names to avoid conflict
+    constructor(int256 initialAnswer, string memory descriptionText, uint8 decimalPlaces) {
         _answer = initialAnswer;
         _updatedAt = block.timestamp;
-        _description = description;
-        _decimals = decimals;
+        _description = descriptionText;
+        _decimals = decimalPlaces;
     }
 
     function setAnswer(int256 answer) external {
