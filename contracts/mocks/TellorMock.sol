@@ -18,6 +18,12 @@ contract TellorMock is ITellor {
     }
     
     function getCurrentValue(bytes32 _queryId) external view returns (uint256) {
-        return uint256(_value > 0 ? _value : 0);
+        // Fix: Ensure consistent types in ternary operation
+        return uint256(_value > 0 ? uint256(_value) : 0);
+        // Alternative fix:
+        // if (_value > 0) {
+        //     return uint256(_value);
+        // }
+        // return 0;
     }
 }
