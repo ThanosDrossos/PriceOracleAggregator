@@ -1,32 +1,30 @@
-// filepath: price-oracle-aggregator/test/mocks/UniswapV3Mock.sol
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../interfaces/IUniswapV3Oracle.sol";
 
-contract UniswapV3Mock {
-    uint256 private price;
-
-    constructor(uint256 initialPrice) {
-        price = initialPrice;
+contract UniswapV3Mock is IUniswapV3Oracle {
+    int56[] private _tickCumulatives;
+    uint160[] private _secondsPerLiquidityCumulativeX128s;
+    
+    constructor(int56 tickCumulative) {
+        _tickCumulatives = new int56[](2);
+        _tickCumulatives[0] = tickCumulative;
+        _tickCumulatives[1] = tickCumulative + 100; // Simple difference for TWAP calculation
+        
+        _secondsPerLiquidityCumulativeX128s = new uint160[](2);
+        _secondsPerLiquidityCumulativeX128s[0] = 0;
+        _secondsPerLiquidityCumulativeX128s[1] = 0;
     }
-
-    function setPrice(uint256 newPrice) external {
-        price = newPrice;
+    
+    function setTickCumulatives(int56 oldTick, int56 newTick) external {
+        _tickCumulatives[0] = oldTick;
+        _tickCumulatives[1] = newTick;
     }
-
-    function getPrice() external view returns (uint256) {
-        return price;
-    }
-
-    function observe(uint32[] calldata secondsAgos) external view returns (int56[] memory, uint160[] memory) {
-        int56[] memory tickCumulatives = new int56[](secondsAgos.length);
-        uint160[] memory secondsPerLiquidityCumulativeX128 = new uint160[](secondsAgos.length);
-
-        for (uint256 i = 0; i < secondsAgos.length; i++) {
-            tickCumulatives[i] = int56(price); // Mocking the price as the tick cumulative
-            secondsPerLiquidityCumulativeX128[i] = uint160(price); // Mocking the seconds per liquidity
-        }
-
-        return (tickCumulatives, secondsPerLiquidityCumulativeX128);
+    
+    function observe(uint32[] calldata secondsAgos) external view override returns (
+        int56[] memory tickCumulatives,
+        uint160[] memory secondsPerLiquidityCumulativeX128s
+    ) {
+        return (_tickCumulatives, _secondsPerLiquidityCumulativeX128s);
     }
 }
