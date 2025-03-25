@@ -16,7 +16,9 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
  * to provide robust and manipulation-resistant price feeds for DeFi applications
  */
 contract PriceAggregator is Ownable, ReentrancyGuard {
-    using OracleLib for int256[];
+    // Replace using statements with contract instance variables
+    OracleLib public oracleLib;
+    TWAPCalculator public twapCalculator;
     using SafeCast for uint256;
     using SafeCast for int256;
     
@@ -55,8 +57,19 @@ contract PriceAggregator is Ownable, ReentrancyGuard {
     event AssetPairAdded(string symbol, string baseAsset, string quoteAsset);
     event AssetPairUpdated(string symbol, bool active);
 
-    constructor(OracleSource[] memory _sources) {
+constructor(
+        OracleSource[] memory _sources,
+        address _oracleLib,
+        address _twapCalculator
+    ) {
         require(_sources.length > 0, "No sources provided");
+        require(_oracleLib != address(0), "Invalid OracleLib address");
+        require(_twapCalculator != address(0), "Invalid TWAPCalculator address");
+        
+        // Initialize contract references
+        oracleLib = OracleLib(_oracleLib);
+        twapCalculator = TWAPCalculator(_twapCalculator);
+        
         uint256 totalWeight = 0;
         
         for (uint256 i = 0; i < _sources.length; i++) {
@@ -106,7 +119,7 @@ contract PriceAggregator is Ownable, ReentrancyGuard {
             mstore(prices, validPrices)
         }
         
-        int256 medianPrice = prices.getMedian();
+        int256 medianPrice = oracleLib.getMedian(prices);
         return medianPrice;
     }
 
@@ -216,7 +229,7 @@ contract PriceAggregator is Ownable, ReentrancyGuard {
             return answer;
         } else if (src.oracleType == 1) {
             // Uniswap
-            int256 twap = TWAPCalculator.getTWAP(IUniswapV3Oracle(src.oracle));
+            int256 twap = twapCalculator.getTWAP(IUniswapV3Oracle(src.oracle));
             require(twap > 0, "Invalid Uniswap TWAP");
             return twap;
         } else if (src.oracleType == 2) {
@@ -251,7 +264,7 @@ contract PriceAggregator is Ownable, ReentrancyGuard {
             return (answer, updatedAt);
         } else if (src.oracleType == 1) {
             // Uniswap - we don't get a timestamp from TWAP
-            return (TWAPCalculator.getTWAP(IUniswapV3Oracle(src.oracle)), block.timestamp);
+            return (twapCalculator.getTWAP(IUniswapV3Oracle(src.oracle)), block.timestamp);
         } else if (src.oracleType == 2) {
             // Tellor
             return (ITellor(src.oracle).getLatestValue(), block.timestamp);

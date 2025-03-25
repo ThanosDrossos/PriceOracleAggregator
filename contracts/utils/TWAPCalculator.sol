@@ -2,9 +2,11 @@ pragma solidity ^0.8.0;
 
 import "../interfaces/IUniswapV3Oracle.sol";
 
-library TWAPCalculator {
+// Changed from library to contract
+contract TWAPCalculator {
     uint32 public constant TWAP_PERIOD = 1800; // 30 minutes TWAP by default
 
+    // Changed from internal to public
     function getTWAP(IUniswapV3Oracle oracle) public view returns (int256) {
         uint32[] memory secondsAgos = new uint32[](2);
         secondsAgos[0] = TWAP_PERIOD; // From 30 minutes ago
@@ -23,8 +25,8 @@ library TWAPCalculator {
         return int256(price);
     }
     
-    // Approximation function to get sqrt ratio from tick
-    function getSqrtRatioAtTick(int24 tick) internal pure returns (uint160) {
+    // Keep internal helper functions
+    function getSqrtRatioAtTick(int24 tick) public pure returns (uint160) {
         // This is a simplified version - in production you'd use the actual UniswapV3 library
         uint256 absTick = tick < 0 ? uint256(-int256(tick)) : uint256(int256(tick));
         uint256 ratio = tick < 0 ? 1e18 / (1e18 + absTick * 0.0001e18) : 1e18 + absTick * 0.0001e18;
@@ -34,13 +36,11 @@ library TWAPCalculator {
         return uint160(sqrtRatio);
     }
     
-    // Calculate price from sqrtPriceX96
-    function getPriceFromSqrtRatio(uint160 sqrtPriceX96) internal pure returns (uint256) {
+    function getPriceFromSqrtRatio(uint160 sqrtPriceX96) public pure returns (uint256) {
         return uint256(sqrtPriceX96) * uint256(sqrtPriceX96) / (2**96);
     }
     
-    // Square root function
-    function sqrt(uint256 x) internal pure returns (uint256 y) {
+    function sqrt(uint256 x) public pure returns (uint256 y) {
         uint256 z = (x + 1) / 2;
         y = x;
         while (z < y) {

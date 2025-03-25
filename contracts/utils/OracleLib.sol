@@ -1,12 +1,13 @@
 pragma solidity ^0.8.0;
 
-library OracleLib {
+// Changed from library to contract
+contract OracleLib {
     /**
      * @notice Calculates the median of an array of int256 values
      * @param values Array of int256 values
      * @return median The median value
      */
-    function getMedian(int256[] memory values) internal pure returns (int256) {
+    function getMedian(int256[] memory values) public pure returns (int256) {
         require(values.length > 0, "Empty array");
 
         // Sort the array (bubble sort for simplicity - use more efficient sort in production)

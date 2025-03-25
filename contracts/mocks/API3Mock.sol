@@ -18,8 +18,8 @@ contract API3Mock is IAPI3 {
         return _price;
     }
     
-    // These are optional implementations if you need them
-    function getDataBefore(bytes32 _dataFeedId, uint256 timestamp) external pure returns (int224 value, uint32 ts) {
+    // Changed from pure to view since it reads state (_price) and block.timestamp
+    function getDataBefore(bytes32 _dataFeedId, uint256 timestamp) external view returns (int224 value, uint32 timestampValue) {
         return (int224(_price), uint32(block.timestamp - 3600));
     }
     
