@@ -4,7 +4,7 @@
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@openzeppelin/contracts": "^4.9.3",
     "@uniswap/v3-core": "^1.0.1",
-    "@uniswap/v3-periphery": "^1.4.3",
+    "@uniswap/v3-periphery": "^1.4.4",
     "ethers": "^6.13.5",
     "hardhat": "^2.22.19"
   },
