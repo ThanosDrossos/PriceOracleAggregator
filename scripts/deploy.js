@@ -1,4 +1,6 @@
 const hre = require("hardhat");
+const { ethers } = require("hardhat");
+const addresses = require("./addresses");
 
 async function main() {
   const [deployer] = await hre.ethers.getSigners();
@@ -17,56 +19,83 @@ async function main() {
   await twapCalculator.deploymentTransaction().wait(1);
   console.log("TWAPCalculator deployed to:", await twapCalculator.getAddress());
   
-  // Use real oracle addresses for Sepolia testnet
-  const CHAINLINK_ETH_USD_SEPOLIA = "0x694AA1769357215DE4FAC081bf1f309aDC325306";
+  // Deploy Tellor adapters for real Tellor oracle (not mocks)
+  console.log("Deploying Tellor Adapters...");
   
-  // For other oracles, you might need to deploy mocks if they don't exist on testnet
-  // Deploy mock oracles for other price sources
-  console.log("Deploying mock oracles...");
+  const TellorAdapter = await hre.ethers.getContractFactory("TellorAdapter");
   
-  const API3Mock = await hre.ethers.getContractFactory("API3Mock");
-  const api3Mock = await API3Mock.deploy(ethers.parseUnits("3000", 18)); // ETH price $3000
-  await api3Mock.deploymentTransaction().wait(1);
-  console.log("API3Mock deployed to:", await api3Mock.getAddress());
+  const tellorEthUsdAdapter = await TellorAdapter.deploy(
+    addresses.tellorContract,
+    addresses.tellorQueryETHUSD
+  );
+  await tellorEthUsdAdapter.deploymentTransaction().wait(1);
+  console.log("Tellor ETH-USD Adapter deployed to:", await tellorEthUsdAdapter.getAddress());
   
-  const TellorMock = await hre.ethers.getContractFactory("TellorMock");
-  const tellorMock = await TellorMock.deploy(ethers.parseUnits("3000", 18)); // ETH price $3000
-  await tellorMock.deploymentTransaction().wait(1);
-  console.log("TellorMock deployed to:", await tellorMock.getAddress());
+  const tellorBtcUsdAdapter = await TellorAdapter.deploy(
+    addresses.tellorContract,
+    addresses.tellorQueryBTCUSD
+  );
+  await tellorBtcUsdAdapter.deploymentTransaction().wait(1);
+  console.log("Tellor BTC-USD Adapter deployed to:", await tellorBtcUsdAdapter.getAddress());
   
-  const UniswapV3Mock = await hre.ethers.getContractFactory("UniswapV3Mock");
-  const uniswapV3Mock = await UniswapV3Mock.deploy(100000); // Some tick value
-  await uniswapV3Mock.deploymentTransaction().wait(1);
-  console.log("UniswapV3Mock deployed to:", await uniswapV3Mock.getAddress());
+  const tellorLinkUsdAdapter = await TellorAdapter.deploy(
+    addresses.tellorContract,
+    addresses.tellorQueryLINKUSD
+  );
+  await tellorLinkUsdAdapter.deploymentTransaction().wait(1);
+  console.log("Tellor LINK-USD Adapter deployed to:", await tellorLinkUsdAdapter.getAddress());
+  
+  // Deploy API3 adapter for ETH/USD
+  console.log("Deploying API3 adapter for ETH/USD...");
+  const API3Adapter = await hre.ethers.getContractFactory("API3Adapter");
+  const api3EthUsdAdapter = await API3Adapter.deploy(
+    addresses.API3ProxyAddressETHUSD,
+    addresses.API3DataFeedIdETHUSD
+  );
+  await api3EthUsdAdapter.deploymentTransaction().wait(1);
+  console.log("API3 ETH-USD Adapter deployed to:", await api3EthUsdAdapter.getAddress());
+  
+  // Deploy UniswapV3GraphAdapter
+  console.log("Deploying UniswapV3GraphAdapter...");
+  const UniswapV3GraphAdapter = await hre.ethers.getContractFactory("UniswapV3GraphAdapter");
+  const uniswapV3GraphAdapter = await UniswapV3GraphAdapter.deploy();
+  await uniswapV3GraphAdapter.deploymentTransaction().wait(1);
+  console.log("UniswapV3GraphAdapter deployed to:", await uniswapV3GraphAdapter.getAddress());
+  
+  // Update environment with the adapter address for the update script to use
+  console.log(`\nTo use the price update script, run:\nexport UNISWAP_ADAPTER_ADDRESS=${await uniswapV3GraphAdapter.getAddress()}\nnpx hardhat run scripts/updateUniswapPrices.js --network sepolia`);
   
   // Configure oracle sources
-  const sources = [
+  console.log("Setting up oracle sources...");
+  
+  // ETH-USD sources
+  const ethUsdSources = [
     { 
-      oracle: CHAINLINK_ETH_USD_SEPOLIA, 
+      oracle: addresses.chainlinkETHUSD, 
       oracleType: 0, // Chainlink
-      weight: 2,
+      weight: 3,     // Highest weight for Chainlink
       heartbeatSeconds: 3600,
       description: "Chainlink ETH/USD",
       decimals: 8
     },
     { 
-      oracle: await uniswapV3Mock.getAddress(), 
+      oracle: await uniswapV3GraphAdapter.getAddress(), 
       oracleType: 1, // Uniswap
-      weight: 1,
+      weight: 2,
       heartbeatSeconds: 3600,
       description: "Uniswap ETH/USD",
       decimals: 18
     },
     { 
-      oracle: await tellorMock.getAddress(), 
+      oracle: await tellorEthUsdAdapter.getAddress(), 
       oracleType: 2, // Tellor
-      weight: 1,
+      weight: 2,
       heartbeatSeconds: 3600,
       description: "Tellor ETH/USD",
       decimals: 18
     },
     { 
-      oracle: await api3Mock.getAddress(), 
+      oracle: await api3EthUsdAdapter.getAddress(), 
       oracleType: 3, // API3
       weight: 1,
       heartbeatSeconds: 3600,
@@ -75,59 +104,163 @@ async function main() {
     }
   ];
   
+  // BTC-USD sources - using only Chainlink, Uniswap, and Tellor (no API3)
+  const btcUsdSources = [
+    { 
+      oracle: addresses.chainlinkBTCUSD, 
+      oracleType: 0, // Chainlink
+      weight: 3,
+      heartbeatSeconds: 3600,
+      description: "Chainlink BTC/USD",
+      decimals: 8
+    },
+    { 
+      oracle: await uniswapV3GraphAdapter.getAddress(), 
+      oracleType: 1, // Uniswap
+      weight: 2,
+      heartbeatSeconds: 3600,
+      description: "Uniswap BTC/USD",
+      decimals: 18
+    },
+    { 
+      oracle: await tellorBtcUsdAdapter.getAddress(), 
+      oracleType: 2, // Tellor
+      weight: 2,
+      heartbeatSeconds: 3600,
+      description: "Tellor BTC/USD",
+      decimals: 18
+    }
+  ];
+  
+  // LINK-USD sources - using only Chainlink, Uniswap, and Tellor (no API3)
+  const linkUsdSources = [
+    { 
+      oracle: addresses.chainlinkLINKUSD, 
+      oracleType: 0, // Chainlink
+      weight: 3,
+      heartbeatSeconds: 3600,
+      description: "Chainlink LINK/USD",
+      decimals: 8
+    },
+    { 
+      oracle: await uniswapV3GraphAdapter.getAddress(), 
+      oracleType: 1, // Uniswap
+      weight: 2,
+      heartbeatSeconds: 3600,
+      description: "Uniswap LINK/USD",
+      decimals: 18
+    },
+    { 
+      oracle: await tellorLinkUsdAdapter.getAddress(), 
+      oracleType: 2, // Tellor
+      weight: 2,
+      heartbeatSeconds: 3600,
+      description: "Tellor LINK/USD",
+      decimals: 18
+    }
+  ];
+  
   // Deploy PriceAggregator with utility contracts
   console.log("Deploying PriceAggregator...");
   const PriceAggregator = await hre.ethers.getContractFactory("PriceAggregator");
   const priceAggregator = await PriceAggregator.deploy(
-    sources, 
+    ethUsdSources, // Start with just ETH-USD sources to avoid gas limit issues
     await oracleLib.getAddress(),
     await twapCalculator.getAddress()
   );
   await priceAggregator.deploymentTransaction().wait(1);
   console.log("PriceAggregator deployed to:", await priceAggregator.getAddress());
   
+  // Add additional sources after deployment
+  console.log("Adding BTC-USD sources...");
+  for (const source of btcUsdSources) {
+    // Skip if source already exists
+    try {
+      await priceAggregator.getSourceIndex(source.oracle);
+      console.log(`Source ${source.oracle} already exists, skipping...`);
+    } catch (error) {
+      if (error.message.includes("Oracle not found")) {
+        console.log(`Adding source ${source.description}...`);
+        await priceAggregator.addOracleSource(source);
+        console.log(`Added ${source.description}`);
+      } else {
+        throw error;
+      }
+    }
+  }
+  
+  console.log("Adding LINK-USD sources...");
+  for (const source of linkUsdSources) {
+    // Skip if source already exists
+    try {
+      await priceAggregator.getSourceIndex(source.oracle);
+      console.log(`Source ${source.oracle} already exists, skipping...`);
+    } catch (error) {
+      if (error.message.includes("Oracle not found")) {
+        console.log(`Adding source ${source.description}...`);
+        await priceAggregator.addOracleSource(source);
+        console.log(`Added ${source.description}`);
+      } else {
+        throw error;
+      }
+    }
+  }
+  
   // Add asset pairs
   console.log("Adding asset pairs...");
+  
   await priceAggregator.addAssetPair(
     "ETH-USD",
     "ETH",
     "USD",
-    [
-      CHAINLINK_ETH_USD_SEPOLIA,
-      await uniswapV3Mock.getAddress(),
-      await tellorMock.getAddress(),
-      await api3Mock.getAddress()
-    ]
+    ethUsdSources.map(source => source.oracle)
   );
   console.log("ETH-USD pair added");
   
+  await priceAggregator.addAssetPair(
+    "BTC-USD",
+    "BTC",
+    "USD",
+    btcUsdSources.map(source => source.oracle)
+  );
+  console.log("BTC-USD pair added");
+  
+  await priceAggregator.addAssetPair(
+    "LINK-USD",
+    "LINK",
+    "USD",
+    linkUsdSources.map(source => source.oracle)
+  );
+  console.log("LINK-USD pair added");
+  
   console.log("Deployment complete!");
   
-  // Verify contracts on Etherscan
-  console.log("Verifying contracts on Etherscan...");
-  try {
-    await hre.run("verify:verify", {
-      address: await oracleLib.getAddress(),
-      constructorArguments: [],
-    });
-    await hre.run("verify:verify", {
-      address: await twapCalculator.getAddress(),
-      constructorArguments: [],
-    });
-    await hre.run("verify:verify", {
-      address: await priceAggregator.getAddress(),
-      constructorArguments: [
-        sources,
-        await oracleLib.getAddress(),
-        await twapCalculator.getAddress()
-      ],
-    });
-    console.log("Verification complete!");
-  } catch (error) {
-    console.error("Error during verification:", error);
-  }
+  // Save deployment addresses for later use
+  console.log("\nDeployed contract addresses:");
+  console.log("----------------------------");
+  console.log("OracleLib:", await oracleLib.getAddress());
+  console.log("TWAPCalculator:", await twapCalculator.getAddress());
+  console.log("UniswapV3GraphAdapter:", await uniswapV3GraphAdapter.getAddress());
+  console.log("PriceAggregator:", await priceAggregator.getAddress());
+  console.log("API3Adapter (ETH-USD):", await api3EthUsdAdapter.getAddress());
+  console.log("TellorAdapter (ETH-USD):", await tellorEthUsdAdapter.getAddress());
+  console.log("TellorAdapter (BTC-USD):", await tellorBtcUsdAdapter.getAddress());
+  console.log("TellorAdapter (LINK-USD):", await tellorLinkUsdAdapter.getAddress());
+  
+  // Update contract addresses in the addresses.js file
+  console.log("\nUpdate your addresses.js file with these adapter addresses.");
+  
+  // Instructions for verification
+  console.log("\nTo verify the contracts on Etherscan, run the following commands after deployment:");
+  console.log(`npx hardhat verify --network sepolia ${await oracleLib.getAddress()}`);
+  console.log(`npx hardhat verify --network sepolia ${await twapCalculator.getAddress()}`);
+  console.log(`npx hardhat verify --network sepolia ${await uniswapV3GraphAdapter.getAddress()}`);
+  console.log(`npx hardhat verify --network sepolia ${await api3EthUsdAdapter.getAddress()} ${addresses.API3ProxyAddressETHUSD} ${addresses.API3DataFeedIdETHUSD}`);
+  console.log(`npx hardhat verify --network sepolia ${await tellorEthUsdAdapter.getAddress()} ${addresses.tellorContract} ${addresses.tellorQueryETHUSD}`);
+  console.log(`npx hardhat verify --network sepolia ${await priceAggregator.getAddress()} "[${ethUsdSources.map(s => JSON.stringify(s)).join(',')}]" ${await oracleLib.getAddress()} ${await twapCalculator.getAddress()}`);
 }
 
+// Execute deployment
 main()
   .then(() => process.exit(0))
   .catch((error) => {

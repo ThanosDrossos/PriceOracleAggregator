@@ -3,6 +3,8 @@
     "@nomicfoundation/hardhat-ethers": "^3.0.8",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@openzeppelin/contracts": "^4.9.3",
+    "@uniswap/v3-core": "^1.0.1",
+    "@uniswap/v3-periphery": "^1.4.3",
     "ethers": "^6.13.5",
     "hardhat": "^2.22.19"
   },
@@ -80,6 +82,7 @@
     "glob": "^8.1.0",
     "glob-parent": "^5.1.2",
     "graceful-fs": "^4.2.11",
+    "graphql-request": "^7.1.2",
     "has-flag": "^4.0.0",
     "hash-base": "^3.1.0",
     "hash.js": "^1.1.7",
