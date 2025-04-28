@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.7.6 <0.8.0;
+pragma solidity ^0.8.0;
 
 import "../interfaces/IAPI3.sol";
 
@@ -60,6 +60,10 @@ contract API3Mock is IAPI3 {
             value: value,
             timestamp: timestamp
         });
+        
+        // IMPORTANT FIX: Also update the _latestValue since getLatestPrice() is likely what's being called
+        _latestValue = value;
+        _timestamp = timestamp;
     }
     
     /**

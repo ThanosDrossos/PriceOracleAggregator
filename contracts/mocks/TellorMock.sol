@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.7.6 <0.8.0;
+pragma solidity ^0.8.0;
 
 import "../interfaces/ITellor.sol";
 
@@ -13,6 +13,7 @@ contract TellorMock is ITellor {
     mapping(bytes32 => QueryData) private values;
     int256 private _defaultValue;
     uint256 private _lastReportedTimestamp;
+    bytes32 private _activeQueryId;
     
     struct QueryData {
         uint256 value;
@@ -28,6 +29,7 @@ contract TellorMock is ITellor {
     constructor(int256 initialValue) {
         _defaultValue = initialValue;
         _lastReportedTimestamp = block.timestamp;
+        _activeQueryId = ETH_USD_QUERY_ID; // Default to ETH_USD
         
         // Initialize common query IDs
         uint256 uintValue = initialValue > 0 ? uint256(initialValue) : 0;
@@ -80,6 +82,19 @@ contract TellorMock is ITellor {
             timestamp: timestamp,
             exists: true
         });
+        
+        // IMPORTANT FIX: Also update the default value for getLatestValue()
+        _defaultValue = int256(value);
+        _lastReportedTimestamp = timestamp;
+        _activeQueryId = queryId;
+    }
+    
+    /**
+     * @notice Sets the active query ID that getLatestValue() will return data for
+     * @param queryId The query ID to make active
+     */
+    function setActiveQueryId(bytes32 queryId) external {
+        _activeQueryId = queryId;
     }
     
     /**
@@ -87,6 +102,11 @@ contract TellorMock is ITellor {
      * @return The latest price value
      */
     function getLatestValue() external view override returns (int256) {
+        // IMPORTANT FIX: Use the active query ID's value if it exists
+        QueryData memory data = values[_activeQueryId];
+        if (data.exists) {
+            return int256(data.value);
+        }
         return _defaultValue;
     }
     

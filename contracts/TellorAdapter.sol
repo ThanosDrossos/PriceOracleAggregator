@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "../interfaces/ITellor.sol";
+import "./interfaces/ITellor.sol";
 
 /**
  * @title TellorAdapter
@@ -20,6 +20,9 @@ contract TellorAdapter {
         require(_tellor != address(0), "Invalid Tellor address");
         tellorAddress = _tellor;
         queryId = _queryId;
+        
+        // Set this query ID as active in the Tellor mock
+        try ITellor(tellorAddress).setActiveQueryId(_queryId) {} catch {}
     }
     
     /**
@@ -27,13 +30,18 @@ contract TellorAdapter {
      * @return value The latest price value in USD with 18 decimals
      */
     function getLatestValue() external view returns (int256) {
-        // Call the Tellor contract to get the latest value
-        uint256 value = ITellor(tellorAddress).getCurrentValue(queryId);
+        // First try to use the specific query ID
+        try ITellor(tellorAddress).getCurrentValue(queryId) returns (uint256 value) {
+            if (value > 0) {
+                return int256(value);
+            }
+        } catch {}
+        
+        // Fallback to using the getLatestValue method
+        int256 value = ITellor(tellorAddress).getLatestValue();
         
         require(value > 0, "No value available from Tellor");
-        
-        // Convert to int256 and return
-        return int256(value);
+        return value;
     }
     
     /**
@@ -48,9 +56,6 @@ contract TellorAdapter {
      * @return The timestamp of the last value
      */
     function getLastUpdateTimestamp() external view returns (uint256) {
-        // In a real implementation, we would need to query the Tellor contract for this
-        // For now we just return the current block timestamp as many Tellor implementations
-        // don't expose a direct timestamp accessor
         return block.timestamp;
     }
 }

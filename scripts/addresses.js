@@ -24,6 +24,10 @@ const wbtcAddress = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599";
 const linkAddress = "0x514910771AF9Ca656af840dff83E8264EcF986CA";
 const usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
+const WBTC_USDC_POOL = "0x99ac8ca7087fa4a2a1fb6357269965a2014abc35";
+const WETH_USDC_POOL = "0xc6962004f452be9203591991d15f6b388e09e8d0";
+const LINK_USDC_POOL = "0xfad57d2039c21811c8f2b5d5b65308aa99d31559";
+
 // CHAINLINK
 const chainlinkOperatorFactory = "0x447Fd5eC2D383091C22B8549cb231a3bAD6d3fAf";
 
@@ -57,6 +61,9 @@ module.exports = {
     wbtcAddress,
     linkAddress,
     usdcAddress,
+    WBTC_USDC_POOL,
+    WETH_USDC_POOL,
+    LINK_USDC_POOL,
     
     // Chainlink
     chainlinkOperatorFactory,
@@ -67,4 +74,6 @@ module.exports = {
     // API3
 
     API3ReaderProxyETHUSD
+
+
 };

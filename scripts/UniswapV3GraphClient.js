@@ -1,18 +1,30 @@
-const axios = require('axios');
+const { request, gql } = require('graphql-request');
 const { ethers } = require('ethers');
+const { WBTC_USDC_POOL, WETH_USDC_POOL, LINK_USDC_POOL } = require('./addresses');
 
 class UniswapV3GraphClient {
-  constructor(endpoint) {
+  constructor(endpoint, apiKey = '') {
     this.endpoint = endpoint;
+    this.apiKey = apiKey;
+    this.poolMap = {
+      WBTC: WBTC_USDC_POOL,
+      WETH: WETH_USDC_POOL,
+      LINK: LINK_USDC_POOL
+    };
   }
 
-  async fetchPoolData(tokenA, tokenB, timeframe = 86400) {
-    const query = `
-      query {
-        pools(where: {
-          token0_in: ["${tokenA.toLowerCase()}", "${tokenB.toLowerCase()}"],
-          token1_in: ["${tokenA.toLowerCase()}", "${tokenB.toLowerCase()}"]
-        }, orderBy: volumeUSD, orderDirection: desc, first: 1) {
+  async fetchPoolDataByTokenSymbol(tokenSymbol) {
+    const poolId = this.poolMap[tokenSymbol];
+    if (!poolId) {
+      throw new Error(`No pool ID defined for token symbol: ${tokenSymbol}`);
+    }
+    return this.fetchPoolData(poolId);
+  }
+
+  async fetchPoolData(poolId) {
+    const query = gql`
+      query MyQuery {
+        pool(id: "${poolId.toLowerCase()}") {
           id
           token0 {
             id
@@ -28,53 +40,76 @@ class UniswapV3GraphClient {
           token1Price
           volumeUSD
           feeTier
-          sqrtPrice
-          liquidity
-          poolDayData(first: 1, orderBy: date, orderDirection: desc) {
-            close
-            open
-            high
-            low
-            volumeUSD
-          }
         }
       }
     `;
 
+    const headers = {};
+    if (this.apiKey) {
+      headers.Authorization = `Bearer ${this.apiKey}`;
+    }
+
     try {
-      const response = await axios.post(
-        this.endpoint,
-        { query },
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-
-      if (response.data.errors) {
-        throw new Error(`GraphQL Error: ${JSON.stringify(response.data.errors)}`);
+      const data = await request(this.endpoint, query, {}, headers);
+      
+      const pool = data.pool;
+      if (!pool) {
+        throw new Error(`No pool found with ID ${poolId}`);
       }
 
-      const pools = response.data.data.pools;
-      if (!pools || pools.length === 0) {
-        throw new Error(`No pools found for token pair ${tokenA}/${tokenB}`);
-      }
-
-      return this.processPoolData(pools[0], tokenA, tokenB);
+      return this.processPoolData(pool);
     } catch (error) {
       console.error('Failed to fetch Uniswap V3 data:', error);
       throw error;
     }
   }
 
-  processPoolData(pool, tokenA, tokenB) {
-    // Determine which token is which in the pool
-    const isToken0A = pool.token0.id.toLowerCase() === tokenA.toLowerCase();
-    
-    // Get the price based on which token we're pricing
-    let price;
-    if (isToken0A) {
-      price = pool.token1Price; // If tokenA is token0, we want the token1Price
-    } else {
-      price = pool.token0Price; // If tokenA is token1, we want the token0Price
+  // Simplified query version that only gets token1Price
+  async fetchTokenPrice(poolId) {
+    const query = gql`
+      query MyQuery {
+        pool(id: "${poolId.toLowerCase()}") {
+          token1Price
+          token1 {
+            id
+          }
+        }
+      }
+    `;
+
+    const headers = {};
+    if (this.apiKey) {
+      headers.Authorization = `Bearer ${this.apiKey}`;
     }
+
+    try {
+      const data = await request(this.endpoint, query, {}, headers);
+      
+      const pool = data.pool;
+      if (!pool) {
+        throw new Error(`No pool found with ID ${poolId}`);
+      }
+
+      // Convert price to Wei format (18 decimals)
+      const priceInWei = ethers.utils.parseUnits(
+        pool.token1Price.toString(), 
+        18
+      );
+
+      return {
+        price: priceInWei.toString(),
+        humanReadablePrice: pool.token1Price,
+        token1Id: pool.token1.id
+      };
+    } catch (error) {
+      console.error('Failed to fetch token price:', error);
+      throw error;
+    }
+  }
+
+  processPoolData(pool) {
+    // The price corresponds to the price of token0 in terms of token1 (USDC)
+    const price = pool.token1Price;
 
     // Convert price to Wei format (18 decimals)
     const priceInWei = ethers.utils.parseUnits(
