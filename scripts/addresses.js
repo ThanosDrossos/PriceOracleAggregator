@@ -1,4 +1,7 @@
-// TELLOR
+// DO NOT CHANGE THIS FILE UNLESS YOU KNOW WHAT YOU ARE DOING
+// This file contains the addresses of various contracts and tokens used in the project.
+// It is important to keep this file consistent and up-to-date.
+// // TELLOR
 
 // Contracts
 
@@ -25,8 +28,8 @@ const linkAddress = "0x514910771AF9Ca656af840dff83E8264EcF986CA";
 const usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
 const WBTC_USDC_POOL = "0x99ac8ca7087fa4a2a1fb6357269965a2014abc35";
-const WETH_USDC_POOL = "0xc6962004f452be9203591991d15f6b388e09e8d0";
-const LINK_USDC_POOL = "0xfad57d2039c21811c8f2b5d5b65308aa99d31559";
+const USDC_WETH_POOL = "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640";
+const UNI_USDC_POOL = "0x3470447f3CecfFAc709D3e783A307790b0208d60";
 
 // CHAINLINK
 const chainlinkOperatorFactory = "0x447Fd5eC2D383091C22B8549cb231a3bAD6d3fAf";
@@ -62,8 +65,8 @@ module.exports = {
     linkAddress,
     usdcAddress,
     WBTC_USDC_POOL,
-    WETH_USDC_POOL,
-    LINK_USDC_POOL,
+    USDC_WETH_POOL,
+    UNI_USDC_POOL,
     
     // Chainlink
     chainlinkOperatorFactory,
