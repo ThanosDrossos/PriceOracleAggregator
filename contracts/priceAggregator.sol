@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./interfaces/IAggregatorV3.sol";
 import "./interfaces/IAPI3.sol";
-import "./interfaces/ITellor.sol";
+import "./interfaces/ITellor_old.sol";
 import "./interfaces/IUniswapV3Oracle.sol";
 import "./utils/OracleLib.sol";
 import "./utils/TWAPCalculator.sol";
@@ -236,7 +236,7 @@ constructor(
             return twap;
         } else if (src.oracleType == 2) {
             // Tellor
-            int256 price = ITellor(src.oracle).getLatestValue();
+            int256 price = ITellorOld(src.oracle).getLatestValue();
             require(price > 0, "Invalid Tellor price");
             return price;
         } else if (src.oracleType == 3) {
@@ -269,7 +269,7 @@ constructor(
             return (twapCalculator.getTWAP(IUniswapV3Oracle(src.oracle)), block.timestamp);
         } else if (src.oracleType == 2) {
             // Tellor
-            return (ITellor(src.oracle).getLatestValue(), block.timestamp);
+            return (ITellorOld(src.oracle).getLatestValue(), block.timestamp);
         } else if (src.oracleType == 3) {
             // API3
             return (IAPI3(src.oracle).getLatestPrice(), block.timestamp);

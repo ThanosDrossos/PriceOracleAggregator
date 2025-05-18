@@ -8,6 +8,9 @@
 const tellorContract = "0x199839a4907ABeC8240D119B606C98c405Bb0B33";
 const tellorAdapterContract =	"0x7950db13cc37774614b0aa406e42a4c4f0bf26a6";
 
+const tellorToken = "0x80fc34a2f9FfE86F41580F47368289C402DEc660";
+const tellorOracle = "0xB19584Be015c04cf6CFBF6370Fe94a58b7A38830"; //tellor flex
+
 // QueryIDS
 const tellorQueryETHUSD = "0x83a7f3d48786ac2667503a61e8c415438ed2922eb86a2906e4ee66d9a2ce4992";
 const tellorQueryUNIUSD = "0xb44a64a8c4f1006949b8f471594074e97c5f30ff86acffb2d2a13c00f3aa2da0";
@@ -28,7 +31,7 @@ const linkAddress = "0x514910771AF9Ca656af840dff83E8264EcF986CA";
 const usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
 const WBTC_USDC_POOL = "0x99ac8ca7087fa4a2a1fb6357269965a2014abc35";
-const USDC_WETH_POOL = "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640";
+const USDC_WETH_POOL = "0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36";
 const UNI_USDC_POOL = "0x3470447f3CecfFAc709D3e783A307790b0208d60";
 
 // CHAINLINK
@@ -55,6 +58,8 @@ module.exports = {
     tellorQueryUNIUSD,
     tellorQueryLINKUSD,
     tellorQueryBTCUSD,
+    tellorToken,
+    tellorOracle,
     
     // Uniswap
     uniswapV3Factory,
@@ -77,6 +82,5 @@ module.exports = {
     // API3
 
     API3ReaderProxyETHUSD
-
 
 };

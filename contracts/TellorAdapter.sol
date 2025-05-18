@@ -1,54 +1,60 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./interfaces/ITellor.sol";
+import "usingtellor/contracts/UsingTellor.sol";
 
 /**
  * @title TellorAdapter
  * @dev Adapter contract that standardizes the Tellor oracle interface for our PriceAggregator
  */
-contract TellorAdapter {
-    address public immutable tellorAddress;
+contract TellorAdapter is UsingTellor {
     bytes32 public immutable queryId;
+    string public asset;
+    string public currency;
     
     /**
-     * @dev Constructor to set the Tellor oracle address and queryId
+     * @dev Constructor to set the Tellor oracle address and query parameters
      * @param _tellor Address of the Tellor oracle contract
-     * @param _queryId The bytes32 identifier for the price feed (e.g. ETH-USD)
+     * @param _asset The asset symbol (e.g. "btc")
+     * @param _currency The currency symbol (e.g. "usd")
      */
-    constructor(address _tellor, bytes32 _queryId) {
+    constructor(address _tellor, string memory _asset, string memory _currency) UsingTellor(payable(_tellor)) {
         require(_tellor != address(0), "Invalid Tellor address");
-        tellorAddress = _tellor;
-        queryId = _queryId;
+        asset = _asset;
+        currency = _currency;
         
-        // Set this query ID as active in the Tellor mock
-        try ITellor(tellorAddress).setActiveQueryId(_queryId) {} catch {}
+        // Generate the queryId using the standard Tellor format
+        bytes memory _queryData = abi.encode("SpotPrice", abi.encode(_asset, _currency));
+        queryId = keccak256(_queryData);
     }
     
     /**
      * @dev Get the latest price value from Tellor
-     * @return value The latest price value in USD with 18 decimals
+     * @return value The latest price value in USD
      */
     function getLatestValue() external view returns (int256) {
-        // First try to use the specific query ID
-        try ITellor(tellorAddress).getCurrentValue(queryId) returns (uint256 value) {
-            if (value > 0) {
-                return int256(value);
-            }
-        } catch {}
+        // Get data before current time (using current implementation)
+        (bytes memory _value, uint256 _timestampRetrieved) = 
+            _getDataBefore(queryId, block.timestamp);
         
-        // Fallback to using the getLatestValue method
-        int256 value = ITellor(tellorAddress).getLatestValue();
+        // Check if data exists and is fresh
+        if (_timestampRetrieved == 0) return 0;
+        require(block.timestamp - _timestampRetrieved < 24 hours, "Data is stale");
         
-        require(value > 0, "No value available from Tellor");
-        return value;
+        // Decode and return the value
+        uint256 decodedValue = abi.decode(_value, (uint256));
+        return int256(decodedValue);
     }
     
     /**
      * @dev Fallback method to maintain compatibility with the interface
      */
     function retrieveData() external view returns (uint256) {
-        return ITellor(tellorAddress).getCurrentValue(queryId);
+        (bytes memory _value, uint256 _timestampRetrieved) = 
+            _getDataBefore(queryId, block.timestamp);
+            
+        if (_timestampRetrieved == 0) return 0;
+        return abi.decode(_value, (uint256));
     }
     
     /**
@@ -56,6 +62,7 @@ contract TellorAdapter {
      * @return The timestamp of the last value
      */
     function getLastUpdateTimestamp() external view returns (uint256) {
-        return block.timestamp;
+        (, uint256 _timestampRetrieved) = _getDataBefore(queryId, block.timestamp);
+        return _timestampRetrieved;
     }
 }

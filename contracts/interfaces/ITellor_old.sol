@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface ITellor {
+interface ITellorOld {
     // Simplified interface for our use case
     function getLatestValue() external view returns (int256);
     

@@ -175,6 +175,7 @@
     "undici-types": "^6.20.0",
     "universalify": "^0.1.2",
     "unpipe": "^1.0.0",
+    "usingtellor": "^5.0.5",
     "util-deprecate": "^1.0.2",
     "uuid": "^8.3.2",
     "widest-line": "^3.1.0",

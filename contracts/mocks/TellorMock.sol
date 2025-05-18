@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "../interfaces/ITellor.sol";
+import "../interfaces/ITellor_old.sol";
 
 /**
  * @title TellorMock
  * @dev Mock implementation of the Tellor oracle interface
  * Mimics the behavior of Tellor oracles on Sepolia
  */
-contract TellorMock is ITellor {
+contract TellorMock is ITellorOld {
     // Maps query IDs to values
     mapping(bytes32 => QueryData) private values;
     int256 private _defaultValue;

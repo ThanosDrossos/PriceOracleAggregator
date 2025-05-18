@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "../interfaces/ITellor.sol";
+import "../interfaces/ITellor_old.sol";
 
 /**
  * @title TellorAdapter
@@ -28,7 +28,7 @@ contract TellorAdapter {
      */
     function getLatestValue() external view returns (int256) {
         // Call the Tellor contract to get the latest value
-        uint256 value = ITellor(tellorAddress).getCurrentValue(queryId);
+        uint256 value = ITellorOld(tellorAddress).getCurrentValue(queryId);
         
         require(value > 0, "No value available from Tellor");
         
@@ -40,7 +40,7 @@ contract TellorAdapter {
      * @dev Fallback method to maintain compatibility with the interface
      */
     function retrieveData() external view returns (uint256) {
-        return ITellor(tellorAddress).getCurrentValue(queryId);
+        return ITellorOld(tellorAddress).getCurrentValue(queryId);
     }
     
     /**

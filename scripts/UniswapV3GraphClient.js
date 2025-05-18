@@ -99,10 +99,13 @@ class UniswapV3GraphClient {
         throw new Error(`No pool found with ID ${poolId}`);
       }
 
+      // Format the price string to limit decimal places to avoid numeric errors
+      const formattedPrice = parseFloat(pool.token1Price).toFixed(8);
+      
       // Convert price to Wei format using the correct ethers v6 format
       const priceInWei = ethersModule.parseUnits(
-        pool.token1Price.toString(), 
-        18
+        formattedPrice, 
+        8  // Use 8 decimals instead of 18 to avoid overflow
       );
 
       return {
@@ -124,10 +127,13 @@ class UniswapV3GraphClient {
     const price = pool.token1Price;
 
     try {
-      // Convert price to Wei format using the correct ethers v6 format
+      // Format the price string to limit decimal places to avoid numeric errors
+      const formattedPrice = parseFloat(price).toFixed(8);
+      
+      // Convert price to Wei format using the correct ethers v6 format with fewer decimals
       const priceInWei = ethersModule.parseUnits(
-        price.toString(), 
-        18
+        formattedPrice, 
+        8  // Use 8 decimals instead of 18 to avoid overflow
       );
 
       return {
