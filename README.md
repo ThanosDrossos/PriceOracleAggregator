@@ -476,7 +476,7 @@ The following trading pairs are currently supported:
 | Pair | Chainlink | Uniswap V3 | Tellor | API3 |
 |------|-----------|------------|--------|------|
 | ETH-USD | ✅ | ✅ | ✅ | ✅ |
-| BTC-USD | ✅ | ✅ | ✅ | ❌ |
+| BTC-USD | ✅ | ✅ | ✅ | ✅ |
 | LINK-USD | ✅ | ✅ | ✅ | ❌ |
 
 ## Maintenance & Monitoring
