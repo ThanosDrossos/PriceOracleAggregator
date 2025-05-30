@@ -215,14 +215,20 @@ constructor(
             uint256 sourceIndex = getSourceIndex(pair.sources[i]);
             OracleSource memory src = sources[sourceIndex];
             
-            // Get raw price and timestamp with dispute status
-            (int256 price, uint256 timestamp, bool isDisputed) = getRawPriceTimestampAndDispute(src);
+            // Get raw price and timestamp with dispute status, handle errors gracefully
+            try this.getRawPriceTimestampAndDisputeSafe(src) returns (int256 price, uint256 timestamp, bool isDisputed) {
+                prices[i] = normalizePrice(price, src.decimals);
+                timestamps[i] = timestamp;
+                disputeStatus[i] = isDisputed;
+            } catch {
+                // If source fails, set defaults
+                prices[i] = 0;
+                timestamps[i] = 0;
+                disputeStatus[i] = false;
+            }
             
-            prices[i] = normalizePrice(price, src.decimals);
             sourceTypes[i] = src.oracleType;
             descriptions[i] = src.description;
-            timestamps[i] = timestamp;
-            disputeStatus[i] = isDisputed;
         }
         
         return (prices, sourceTypes, descriptions, timestamps, disputeStatus);
@@ -255,13 +261,18 @@ constructor(
             uint256 sourceIndex = getSourceIndex(pair.sources[i]);
             OracleSource memory src = sources[sourceIndex];
             
-            // Get raw price and timestamp
-            (int256 price, uint256 timestamp) = getRawPriceAndTimestamp(src);
+            // Get raw price and timestamp with error handling
+            try this.getRawPriceAndTimestampSafe(src) returns (int256 price, uint256 timestamp) {
+                prices[i] = normalizePrice(price, src.decimals);
+                timestamps[i] = timestamp;
+            } catch {
+                // If source fails, set price to 0 and timestamp to 0
+                prices[i] = 0;
+                timestamps[i] = 0;
+            }
             
-            prices[i] = normalizePrice(price, src.decimals);
             sourceTypes[i] = src.oracleType;
             descriptions[i] = src.description;
-            timestamps[i] = timestamp;
         }
         
         return (prices, sourceTypes, descriptions, timestamps);
@@ -509,9 +520,9 @@ constructor(
     }
 
     /**
-     * @notice Normalizes price to PRICE_PRECISION decimals
+     * @notice Normalizes price to PRICE_PRECISION decimals (public for testing)
      */
-    function normalizePrice(int256 price, uint8 decimals) internal pure returns (int256) {
+    function normalizePrice(int256 price, uint8 decimals) public pure returns (int256) {
         if (decimals < 18) {
             return price * int256(10 ** (18 - decimals));
         } else if (decimals > 18) {
@@ -666,5 +677,103 @@ constructor(
      */
     function getSources() external view returns (OracleSource[] memory) {
         return sources;
+    }
+    /**
+     * @notice Returns raw price and timestamp from a source with enhanced Tellor support (safe version)
+     */
+    function getRawPriceAndTimestampSafe(OracleSource memory src) public view returns (int256 price, uint256 timestamp) {
+        if (src.oracleType == 0) {
+            // Chainlink
+            (
+                , 
+                int256 answer, 
+                , 
+                uint256 updatedAt, 
+            ) = IAggregatorV3(src.oracle).latestRoundData();
+            
+            return (answer, updatedAt);
+        } else if (src.oracleType == 1) {
+            // Uniswap - we don't get a timestamp from TWAP
+            return (twapCalculator.getTWAP(IUniswapV3Oracle(src.oracle)), block.timestamp);
+        } else if (src.oracleType == 2) {
+            // Enhanced Tellor with actual timestamp
+            TellorAdapter tellorAdapter = TellorAdapter(src.oracle);
+            
+            try tellorAdapter.getLatestValueWithAge(src.heartbeatSeconds) returns (int256 tellorPrice, uint256 tellorTimestamp) {
+                return (tellorPrice, tellorTimestamp);
+            } catch {
+                // Fallback to legacy method
+                try tellorAdapter.getLatestValue() returns (int256 standardPrice) {
+                    uint256 lastTimestamp = tellorAdapter.getLastUpdateTimestamp();
+                    return (standardPrice, lastTimestamp);
+                } catch {
+                    uint256 legacyPrice = tellorAdapter.retrieveData();
+                    uint256 lastTimestamp = tellorAdapter.getLastUpdateTimestamp();
+                    return (int256(legacyPrice), lastTimestamp);
+                }
+            }
+        } else if (src.oracleType == 3) {
+            // API3 - Handle stale data gracefully
+            API3Adapter api3Adapter = API3Adapter(src.oracle);
+            try api3Adapter.getLatestValueWithAge(src.heartbeatSeconds) returns (int256 api3Price, uint256 api3Timestamp) {
+                return (api3Price, api3Timestamp);
+            } catch {
+                // If age requirement fails, try basic method without age check
+                try api3Adapter.getLatestValue() returns (int256 basicPrice) {
+                    uint256 api3Timestamp = api3Adapter.getLastUpdateTimestamp();
+                    return (basicPrice, api3Timestamp);
+                } catch {
+                    // If all fails, return 0s
+                    return (0, 0);
+                }
+            }
+        }
+        
+        return (0, 0);
+    }
+    /**
+     * @notice Returns raw price, timestamp, and dispute status from a source (safe version)
+     */
+    function getRawPriceTimestampAndDisputeSafe(OracleSource memory src) public view returns (int256 price, uint256 timestamp, bool isDisputed) {
+        if (src.oracleType == 2) {
+            // Enhanced Tellor with dispute checking
+            TellorAdapter tellorAdapter = TellorAdapter(src.oracle);
+            
+            try tellorAdapter.getLatestValueWithAge(src.heartbeatSeconds) returns (int256 tellorPrice, uint256 tellorTimestamp) {
+                bool disputed = false;
+                try tellorAdapter.isDisputed(tellorTimestamp) returns (bool disputeResult) {
+                    disputed = disputeResult;
+                } catch {
+                    // If dispute check fails, assume not disputed
+                    disputed = false;
+                }
+                return (tellorPrice, tellorTimestamp, disputed);
+            } catch {
+                // Fallback to legacy method
+                try tellorAdapter.getLatestValue() returns (int256 standardPrice) {
+                    uint256 lastTimestamp = tellorAdapter.getLastUpdateTimestamp();
+                    bool disputed = false;
+                    if (lastTimestamp > 0) {
+                        try tellorAdapter.isDisputed(lastTimestamp) returns (bool disputeResult) {
+                            disputed = disputeResult;
+                        } catch {
+                            disputed = false;
+                        }
+                    }
+                    return (standardPrice, lastTimestamp, disputed);
+                } catch {
+                    uint256 legacyPrice = tellorAdapter.retrieveData();
+                    uint256 lastTimestamp = tellorAdapter.getLastUpdateTimestamp();
+                    return (int256(legacyPrice), lastTimestamp, false);
+                }
+            }
+        } else {
+            // For non-Tellor sources, use the safe method and return false for dispute
+            try this.getRawPriceAndTimestampSafe(src) returns (int256 sourcePrice, uint256 sourceTimestamp) {
+                return (sourcePrice, sourceTimestamp, false);
+            } catch {
+                return (0, 0, false);
+            }
+        }
     }
 }

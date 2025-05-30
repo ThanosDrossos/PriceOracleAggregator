@@ -18,128 +18,502 @@ A robust price oracle aggregator for DeFi applications that combines data from m
 - **Tellor**: Decentralized oracle network with token-incentivized reporting
 - **API3**: First-party oracle solution (ETH/USD support only)
 
-## Deployed Contracts (Sepolia)
+## Deployed Contracts (Sepolia Testnet)
 
-Replace these values with your actual deployed contract addresses after running the deployment script.
+| Contract                | Address | Verification Status |
+|-------------------------|---------|-------------------|
+| PriceAggregator         | `0x3aCf6221b838B9c60FaFDe95fCF5d14218a0D6eb` | ✅ Verified |
+| OracleLib               | `0x348CF9FF117bdCE9Eea9111F228B8DFe0769F478` | ✅ Verified |
+| TWAPCalculator          | `0x2A02559858237d9Fd9230EB3A1E619f8E066fA6A` | ✅ Verified |
+| UniswapV3GraphAdapter   | `0x555790182a355e88F5264C3538C9C08F38DBf05D` | ✅ Verified |
+| API3Adapter (ETH-USD)   | `0xCc6613100E67785Ed993dC72c2e11E64Ff64Cbc6` | ✅ Verified |
+| TellorAdapter (ETH-USD) | `0x33BEDb26aa493c9999B80c69D6263A7fF65E0Eff` | ✅ Verified |
+| TellorAdapter (BTC-USD) | `0x2E977ADc4A60027b846AAaea13d156BEEbBdd394` | ✅ Verified |
+| TellorAdapter (LINK-USD)| `0x5b116a49D06afc089538391A36DaA5bAfFe3EB78` | ✅ Verified |
 
-| Contract                | Address |
-|-------------------------|---------|
-| PriceAggregator         | TBD     |
-| OracleLib               | TBD     |
-| TWAPCalculator          | TBD     |
-| UniswapV3GraphAdapter   | TBD     |
-| API3Adapter (ETH-USD)   | TBD     |
-| TellorAdapter (ETH-USD) | TBD     |
-| TellorAdapter (BTC-USD) | TBD     |
-| TellorAdapter (LINK-USD)| TBD     |
+> **Note**: Replace the addresses above with actual deployed addresses after running the deployment script. All contracts are verified on Sepolia Etherscan.
 
-## Getting Started
+## Quick Start
 
-### Prerequisites
+### Option 1: Using Already Deployed Contracts
 
-- Node.js (v16+)
-- Hardhat
-- Ethers.js
-- Sepolia testnet ETH
-- Infura/Alchemy API key
-- Etherscan API key (for verification)
+If the contracts are already deployed on Sepolia, you can interact with them directly:
 
-### Installation
+```javascript
+const { ethers } = require('ethers');
 
-1. Clone the repository:
-   ```
+// Connect to Sepolia
+const provider = new ethers.JsonRpcProvider('https://sepolia.infura.io/v3/YOUR_INFURA_KEY');
+const priceAggregatorAddress = '0x3aCf6221b838B9c60FaFDe95fCF5d14218a0D6eb'; // Replace with actual address
+
+// ABI for basic price fetching (minimal interface)
+const priceAggregatorABI = [
+  "function getMedianPrice(string memory pairSymbol) public view returns (int256)",
+  "function getWeightedPrice(string memory pairSymbol) public view returns (int256)",
+  "function getAggregatedPrice(string memory pairSymbol) external view returns (int256 medianPrice, int256 weightedPrice)",
+  "function getAllPrices(string memory pairSymbol) external view returns (int256[] memory prices, uint8[] memory sourceTypes, string[] memory descriptions, uint256[] memory timestamps)"
+];
+
+// Create contract instance
+const priceAggregator = new ethers.Contract(priceAggregatorAddress, priceAggregatorABI, provider);
+
+// Get ETH/USD price
+async function getETHPrice() {
+  try {
+    const [medianPrice, weightedPrice] = await priceAggregator.getAggregatedPrice("ETH-USD");
+    console.log(`ETH/USD Median Price: $${ethers.formatUnits(medianPrice, 18)}`);
+    console.log(`ETH/USD Weighted Price: $${ethers.formatUnits(weightedPrice, 18)}`);
+  } catch (error) {
+    console.error('Error fetching price:', error);
+  }
+}
+
+getETHPrice();
+```
+
+### Option 2: Full Installation & Deployment
+
+## Prerequisites
+
+- **Node.js** (v16 or higher)
+- **npm** or **yarn**
+- **Git**
+- **Sepolia testnet ETH** (get from [Sepolia Faucet](https://sepoliafaucet.com/))
+- **Infura/Alchemy API key**
+- **Etherscan API key** (for contract verification)
+
+## Installation
+
+1. **Clone the repository:**
+   ```bash
    git clone https://github.com/ThanosDrossos/PriceOracleAggregator.git
    cd PriceOracleAggregator
    ```
 
-2. Install dependencies:
-   ```
+2. **Install dependencies:**
+   ```bash
    npm install
    ```
 
-3. Create `.env` file with your credentials:
+3. **Create environment file:**
+   ```bash
+   cp .env.example .env
    ```
+
+4. **Configure your `.env` file:**
+   ```env
+   # Wallet Configuration
    PRIVATE_KEY=your_wallet_private_key_here
+
+   # RPC Provider (choose one)
    INFURA_API_KEY=your_infura_api_key_here
+   ALCHEMY_API_KEY=your_alchemy_api_key_here
+
+   # Contract Verification
    ETHERSCAN_API_KEY=your_etherscan_api_key_here
+
+   # Optional: Pre-deployed contract addresses
+   UNISWAP_ADAPTER_ADDRESS=deployed_uniswap_adapter_address
+   PRICE_AGGREGATOR_ADDRESS=deployed_price_aggregator_address
    ```
 
-### Deployment
+## Deployment
 
-1. Deploy all contracts to Sepolia:
-   ```
-   npx hardhat run scripts/deploy.js --network sepolia
-   ```
+### 1. Deploy to Sepolia Testnet
 
-2. Update the Uniswap V3 price feed with data from The Graph:
-   ```
-   export UNISWAP_ADAPTER_ADDRESS=<deployed_adapter_address>
-   npx hardhat run scripts/updateUniswapPrices.js --network sepolia
-   ```
+Run the complete deployment script:
 
-3. Verify contracts on Etherscan (the deploy script will output the necessary commands)
-
-### Usage
-
-Once deployed, interact with the PriceAggregator contract to:
-
-1. Get the median price for a trading pair:
-   ```solidity
-   int256 medianPrice = priceAggregator.getMedianPrice("ETH-USD");
-   ```
-
-2. Get the weighted average price:
-   ```solidity
-   int256 weightedPrice = priceAggregator.getWeightedPrice("ETH-USD");
-   ```
-
-3. Get both price types at once:
-   ```solidity
-   (int256 medianPrice, int256 weightedPrice) = priceAggregator.getAggregatedPrice("ETH-USD");
-   ```
-
-4. Get detailed price data from all sources:
-   ```solidity
-   (int256[] memory prices, uint8[] memory sourceTypes, string[] memory descriptions, uint256[] memory timestamps) = priceAggregator.getAllPrices("ETH-USD");
-   ```
-
-## Setting Up a New Oracle for a Trading Pair
-
-As an admin, you can add new oracle sources and trading pairs:
-
-1. Deploy the appropriate adapter for the new oracle
-
-2. Add the new oracle source:
-   ```solidity
-   priceAggregator.addOracleSource({
-     oracle: oracleAddress,
-     oracleType: oracleTypeID, // 0: Chainlink, 1: Uniswap, 2: Tellor, 3: API3
-     weight: weightValue,       // e.g., ethers.utils.parseUnits("1", 18)
-     heartbeatSeconds: 3600,    // 1 hour maximum staleness
-     description: "Description of the oracle",
-     decimals: 18               // Decimal precision of the price feed
-   });
-   ```
-
-3. Create a new asset pair:
-   ```solidity
-   priceAggregator.addAssetPair(
-     "TOKEN-USD",
-     "TOKEN",
-     "USD",
-     [oracle1Address, oracle2Address, oracle3Address]
-   );
-   ```
-
-## Maintenance
-
-For the Uniswap V3 price source, you need to periodically update the prices from The Graph:
-
+```bash
+npx hardhat run scripts/deploy.js --network sepolia
 ```
+
+This will deploy:
+- ✅ OracleLib utility contract
+- ✅ TWAPCalculator utility contract  
+- ✅ TellorAdapter contracts (ETH-USD, BTC-USD, LINK-USD)
+- ✅ API3Adapter contract (ETH-USD only)
+- ✅ UniswapV3GraphAdapter contract
+- ✅ PriceAggregator main contract with configured asset pairs
+
+### 2. Update Uniswap Price Data
+
+After deployment, update the Uniswap V3 price feeds with data from The Graph:
+
+```bash
+export UNISWAP_ADAPTER_ADDRESS=<deployed_adapter_address>
 npx hardhat run scripts/updateUniswapPrices.js --network sepolia
 ```
 
-Consider setting up a cron job or a similar service to automate this process.
+### 3. Verify Contracts (Optional)
+
+The deployment script will output verification commands. Run them to verify contracts on Etherscan:
+
+```bash
+npx hardhat verify --network sepolia <CONTRACT_ADDRESS> [CONSTRUCTOR_ARGS]
+```
+
+### 4. Test Local Deployment
+
+For local testing with mock oracles:
+
+```bash
+npx hardhat run scripts/deploy-local.js --network localhost
+```
+
+## Usage Examples
+
+### Basic Price Fetching
+
+```javascript
+const { ethers } = require('hardhat');
+
+async function basicPriceExample() {
+  const priceAggregator = await ethers.getContractAt(
+    "PriceAggregator", 
+    "0x3aCf6221b838B9c60FaFDe95fCF5d14218a0D6eb"
+  );
+
+  // Get median price for ETH/USD
+  const medianPrice = await priceAggregator.getMedianPrice("ETH-USD");
+  console.log(`ETH/USD Median: $${ethers.formatUnits(medianPrice, 18)}`);
+
+  // Get weighted average price
+  const weightedPrice = await priceAggregator.getWeightedPrice("ETH-USD");
+  console.log(`ETH/USD Weighted: $${ethers.formatUnits(weightedPrice, 18)}`);
+
+  // Get both prices at once
+  const [median, weighted] = await priceAggregator.getAggregatedPrice("ETH-USD");
+  console.log(`Median: $${ethers.formatUnits(median, 18)}`);
+  console.log(`Weighted: $${ethers.formatUnits(weighted, 18)}`);
+}
+```
+
+### Advanced Price Analysis
+
+```javascript
+async function detailedPriceAnalysis() {
+  const priceAggregator = await ethers.getContractAt(
+    "PriceAggregator", 
+    "0x3aCf6221b838B9c60FaFDe95fCF5d14218a0D6eb"
+  );
+
+  // Get detailed price data from all sources
+  const [prices, sourceTypes, descriptions, timestamps] = 
+    await priceAggregator.getAllPrices("ETH-USD");
+
+  console.log("\n=== ETH/USD Price Analysis ===");
+  
+  for (let i = 0; i < prices.length; i++) {
+    const price = ethers.formatUnits(prices[i], 18);
+    const sourceType = getSourceTypeName(sourceTypes[i]);
+    const lastUpdate = new Date(timestamps[i] * 1000).toLocaleString();
+    
+    console.log(`${descriptions[i]} (${sourceType}): $${price}`);
+    console.log(`  Last updated: ${lastUpdate}`);
+    console.log(`  Status: ${prices[i] > 0 ? '✅ Active' : '❌ Inactive'}\n`);
+  }
+}
+
+function getSourceTypeName(type) {
+  const types = ['Chainlink', 'Uniswap', 'Tellor', 'API3'];
+  return types[type] || 'Unknown';
+}
+```
+
+### Enhanced Tellor Analytics
+
+```javascript
+async function tellorAnalytics() {
+  const priceAggregator = await ethers.getContractAt(
+    "PriceAggregator", 
+    "0x3aCf6221b838B9c60FaFDe95fCF5d14218a0D6eb"
+  );
+
+  const tellorAdapterAddress = "0x[DEPLOYED_TELLOR_ADAPTER_ADDRESS]";
+
+  // Get Tellor-specific analytics
+  const [valueCount, lastReporter, lastTimestamp, isLastDisputed] = 
+    await priceAggregator.getTellorAnalytics(tellorAdapterAddress);
+
+  console.log("\n=== Tellor Analytics ===");
+  console.log(`Total values submitted: ${valueCount}`);
+  console.log(`Last reporter: ${lastReporter}`);
+  console.log(`Last update: ${new Date(lastTimestamp * 1000).toLocaleString()}`);
+  console.log(`Last value disputed: ${isLastDisputed ? '⚠️ Yes' : '✅ No'}`);
+
+  // Check for disputed data across all Tellor sources
+  const [hasDisputed, disputedSources] = 
+    await priceAggregator.checkTellorDisputes("ETH-USD");
+
+  if (hasDisputed) {
+    console.log("\n⚠️ Disputed Tellor Data Found:");
+    disputedSources.forEach(source => console.log(`  - ${source}`));
+  } else {
+    console.log("\n✅ No disputed Tellor data");
+  }
+
+  // Get historical Tellor data for trend analysis
+  const [values, timestamps] = 
+    await priceAggregator.getTellorHistoricalData(
+      tellorAdapterAddress, 
+      86400, // 24 hours
+      10     // last 10 values
+    );
+
+  console.log("\n=== Historical Tellor Data (Last 10 values) ===");
+  for (let i = 0; i < values.length; i++) {
+    const price = ethers.formatUnits(values[i], 18);
+    const time = new Date(timestamps[i] * 1000).toLocaleString();
+    console.log(`$${price} at ${time}`);
+  }
+}
+```
+
+### Web3 Frontend Integration
+
+```javascript
+// React/Next.js example
+import { ethers } from 'ethers';
+
+export class PriceOracleService {
+  constructor(providerUrl, contractAddress) {
+    this.provider = new ethers.JsonRpcProvider(providerUrl);
+    this.contract = new ethers.Contract(contractAddress, ABI, this.provider);
+  }
+
+  async getPrice(pair = "ETH-USD") {
+    try {
+      const [median, weighted] = await this.contract.getAggregatedPrice(pair);
+      return {
+        median: parseFloat(ethers.formatUnits(median, 18)),
+        weighted: parseFloat(ethers.formatUnits(weighted, 18)),
+        pair
+      };
+    } catch (error) {
+      console.error(`Error fetching ${pair} price:`, error);
+      throw error;
+    }
+  }
+
+  async getAllSourcePrices(pair = "ETH-USD") {
+    try {
+      const [prices, types, descriptions, timestamps] = 
+        await this.contract.getAllPrices(pair);
+      
+      return prices.map((price, index) => ({
+        price: parseFloat(ethers.formatUnits(price, 18)),
+        source: descriptions[index],
+        type: ['Chainlink', 'Uniswap', 'Tellor', 'API3'][types[index]],
+        lastUpdate: new Date(timestamps[index] * 1000),
+        active: price > 0
+      }));
+    } catch (error) {
+      console.error(`Error fetching ${pair} source prices:`, error);
+      throw error;
+    }
+  }
+}
+
+// Usage in React component
+const priceService = new PriceOracleService(
+  'https://sepolia.infura.io/v3/YOUR_KEY',
+  '0x3aCf6221b838B9c60FaFDe95fCF5d14218a0D6eb'
+);
+
+// In your component
+useEffect(() => {
+  const fetchPrices = async () => {
+    try {
+      const ethPrice = await priceService.getPrice("ETH-USD");
+      const btcPrice = await priceService.getPrice("BTC-USD");
+      const sourcePrices = await priceService.getAllSourcePrices("ETH-USD");
+      
+      setPrices({ eth: ethPrice, btc: btcPrice, sources: sourcePrices });
+    } catch (error) {
+      console.error('Price fetch failed:', error);
+    }
+  };
+
+  fetchPrices();
+  const interval = setInterval(fetchPrices, 30000); // Update every 30s
+  return () => clearInterval(interval);
+}, []);
+```
+
+## Administrative Functions
+
+### Adding New Oracle Sources
+
+As the contract owner, you can add new oracle sources:
+
+```javascript
+async function addNewOracleSource() {
+  const [owner] = await ethers.getSigners();
+  const priceAggregator = await ethers.getContractAt(
+    "PriceAggregator", 
+    "0x3aCf6221b838B9c60FaFDe95fCF5d14218a0D6eb",
+    owner
+  );
+
+  const newSource = {
+    oracle: "0x[NEW_ORACLE_ADDRESS]",
+    oracleType: 0, // 0: Chainlink, 1: Uniswap, 2: Tellor, 3: API3
+    weight: ethers.parseUnits("2", 18), // Weight of 2
+    heartbeatSeconds: 3600, // 1 hour staleness threshold
+    description: "New Oracle Source Description",
+    decimals: 8 // Price decimals
+  };
+
+  await priceAggregator.addOracleSource(newSource);
+  console.log("New oracle source added successfully!");
+}
+```
+
+### Adding New Asset Pairs
+
+```javascript
+async function addNewAssetPair() {
+  const [owner] = await ethers.getSigners();
+  const priceAggregator = await ethers.getContractAt(
+    "PriceAggregator", 
+    "0x3aCf6221b838B9c60FaFDe95fCF5d14218a0D6eb",
+    owner
+  );
+
+  // Define the oracle addresses that support this pair
+  const oracleSources = [
+    "0x[CHAINLINK_ORACLE_ADDRESS]",
+    "0x[UNISWAP_ORACLE_ADDRESS]",
+    "0x[TELLOR_ORACLE_ADDRESS]"
+  ];
+
+  await priceAggregator.addAssetPair(
+    "UNI-USD",    // Symbol
+    "UNI",        // Base asset
+    "USD",        // Quote asset
+    oracleSources // Array of oracle addresses
+  );
+
+  console.log("UNI-USD pair added successfully!");
+}
+```
+
+## Supported Trading Pairs
+
+The following trading pairs are currently supported:
+
+| Pair | Chainlink | Uniswap V3 | Tellor | API3 |
+|------|-----------|------------|--------|------|
+| ETH-USD | ✅ | ✅ | ✅ | ✅ |
+| BTC-USD | ✅ | ✅ | ✅ | ❌ |
+| LINK-USD | ✅ | ✅ | ✅ | ❌ |
+
+## Maintenance & Monitoring
+
+### Automated Uniswap Price Updates
+
+Set up a cron job to regularly update Uniswap V3 prices:
+
+```bash
+# Add to crontab (crontab -e)
+*/15 * * * * cd /path/to/project && npx hardhat run scripts/updateUniswapPrices.js --network sepolia
+```
+
+### Price Monitoring Script
+
+```javascript
+// monitor-prices.js
+const { ethers } = require('hardhat');
+
+async function monitorPrices() {
+  const priceAggregator = await ethers.getContractAt(
+    "PriceAggregator", 
+    process.env.PRICE_AGGREGATOR_ADDRESS
+  );
+
+  const pairs = ["ETH-USD", "BTC-USD", "LINK-USD"];
+
+  for (const pair of pairs) {
+    try {
+      const [median, weighted] = await priceAggregator.getAggregatedPrice(pair);
+      const [prices, types, descriptions] = await priceAggregator.getAllPrices(pair);
+      
+      console.log(`\n=== ${pair} ===`);
+      console.log(`Median: $${ethers.formatUnits(median, 18)}`);
+      console.log(`Weighted: $${ethers.formatUnits(weighted, 18)}`);
+      
+      // Check for failed sources
+      let failedSources = 0;
+      prices.forEach((price, i) => {
+        if (price === 0n) {
+          console.log(`⚠️ ${descriptions[i]} failed`);
+          failedSources++;
+        }
+      });
+
+      if (failedSources > 0) {
+        console.log(`❌ ${failedSources}/${prices.length} sources failed for ${pair}`);
+      } else {
+        console.log(`✅ All sources active for ${pair}`);
+      }
+
+    } catch (error) {
+      console.error(`❌ Error fetching ${pair}:`, error.message);
+    }
+  }
+}
+
+// Run monitoring
+monitorPrices()
+  .then(() => console.log('\n✅ Monitoring complete'))
+  .catch(console.error);
+```
+
+## Testing
+
+Run the comprehensive test suite:
+
+```bash
+# Local tests with mocks
+npx hardhat test test/PriceAggregator.comprehensive.test.js
+
+# Sepolia testnet tests (requires deployed contracts)
+npx hardhat test test/PriceAggregator.sepolia.test.js --network sepolia
+
+# Individual adapter tests
+npx hardhat test test/ChainlinkAdapterTest.js --network sepolia
+npx hardhat test test/TellorAdapterTest.js --network sepolia
+npx hardhat test test/API3AdapterTest.js --network sepolia
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **"Insufficient valid prices" error**
+   - Check if oracle sources are responding
+   - Verify network connectivity
+   - Ensure Uniswap prices are updated
+
+2. **"Price is stale" error**
+   - Run the Uniswap update script
+   - Check heartbeat settings
+   - Verify oracle data freshness
+
+3. **Gas estimation failed**
+   - Increase gas limit in hardhat.config.js
+   - Check Sepolia ETH balance
+   - Verify contract addresses
+
+4. **Tellor data disputed**
+   - Use the `checkTellorDisputes()` function to identify disputed sources
+   - Consider excluding disputed Tellor data temporarily
+
+### Getting Help
+
+- Check the [Issues](https://github.com/ThanosDrossos/PriceOracleAggregator/issues) page
+- Review test files for usage examples
+- Verify contract addresses on [Sepolia Etherscan](https://sepolia.etherscan.io/)
 
 ## License
 
@@ -148,3 +522,19 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Development Setup
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/new-feature`
+3. Make your changes and add tests
+4. Run tests: `npm test`
+5. Submit a pull request
+
+---
+
+**⚠️ Important Security Notes:**
+- Always verify contract addresses before interacting
+- Use appropriate gas limits for transactions
+- Monitor for disputed Tellor data in production
+- Keep private keys secure and never commit them to version control

@@ -34,7 +34,7 @@ describe("PriceAggregator Comprehensive Sepolia Tests", function () {
 
   before(async function () {
     // Increase timeout for before hook specifically
-    this.timeout(300000);
+    this.timeout(1000000);
     
     // Check if we're on Sepolia network
     const network = await ethers.provider.getNetwork();
@@ -339,7 +339,17 @@ describe("PriceAggregator Comprehensive Sepolia Tests", function () {
       
       for (const source of chainlinkSources) {
         try {
-          const price = await priceAggregator.fetchPriceFromSource(source);
+          // Create a new mutable struct to avoid read-only property errors
+          const mutableSource = {
+            oracle: source.oracle,
+            oracleType: source.oracleType,
+            weight: source.weight,
+            heartbeatSeconds: source.heartbeatSeconds,
+            description: source.description,
+            decimals: source.decimals
+          };
+          
+          const price = await priceAggregator.fetchPriceFromSource(mutableSource);
           const normalizedPrice = await priceAggregator.normalizePrice(price, source.decimals);
           console.log(`  💰 ${source.description}: $${ethers.formatUnits(normalizedPrice, 18)}`);
           expect(price).to.be.gt(0);
@@ -357,7 +367,17 @@ describe("PriceAggregator Comprehensive Sepolia Tests", function () {
       
       for (const source of tellorSources) {
         try {
-          const price = await priceAggregator.fetchPriceFromSource(source);
+          // Create a new mutable struct to avoid read-only property errors
+          const mutableSource = {
+            oracle: source.oracle,
+            oracleType: source.oracleType,
+            weight: source.weight,
+            heartbeatSeconds: source.heartbeatSeconds,
+            description: source.description,
+            decimals: source.decimals
+          };
+          
+          const price = await priceAggregator.fetchPriceFromSource(mutableSource);
           console.log(`  💰 ${source.description}: $${ethers.formatUnits(price, 18)}`);
           expect(price).to.be.gt(0);
           
@@ -391,7 +411,17 @@ describe("PriceAggregator Comprehensive Sepolia Tests", function () {
       
       for (const source of api3Sources) {
         try {
-          const price = await priceAggregator.fetchPriceFromSource(source);
+          // Create a new mutable struct to avoid read-only property errors
+          const mutableSource = {
+            oracle: source.oracle,
+            oracleType: source.oracleType,
+            weight: source.weight,
+            heartbeatSeconds: source.heartbeatSeconds,
+            description: source.description,
+            decimals: source.decimals
+          };
+          
+          const price = await priceAggregator.fetchPriceFromSource(mutableSource);
           console.log(`  💰 ${source.description}: $${ethers.formatUnits(price, 18)}`);
           expect(price).to.be.gt(0);
         } catch (error) {
@@ -412,7 +442,17 @@ describe("PriceAggregator Comprehensive Sepolia Tests", function () {
       
       for (const source of uniswapSources) {
         try {
-          const price = await priceAggregator.fetchPriceFromSource(source);
+          // Create a new mutable struct to avoid read-only property errors
+          const mutableSource = {
+            oracle: source.oracle,
+            oracleType: source.oracleType,
+            weight: source.weight,
+            heartbeatSeconds: source.heartbeatSeconds,
+            description: source.description,
+            decimals: source.decimals
+          };
+          
+          const price = await priceAggregator.fetchPriceFromSource(mutableSource);
           console.log(`  💰 ${source.description}: $${ethers.formatUnits(price, 18)}`);
           
           // Don't expect Uniswap to have realistic prices without updates
@@ -606,8 +646,14 @@ describe("PriceAggregator Comprehensive Sepolia Tests", function () {
         
         // Set minimum to be higher than valid sources
         const testMinimum = validPrices.length + 5;
-        await priceAggregator.setMinOracleResponses(testMinimum);
+        const setMinTx = await priceAggregator.setMinOracleResponses(testMinimum);
+        await setMinTx.wait(); // Wait for transaction confirmation
         console.log(`🔧 Set min responses to ${testMinimum} (higher than available valid sources: ${validPrices.length})`);
+        
+        // Verify the setting took effect
+        const newMin = await priceAggregator.minOracleResponses();
+        console.log(`📊 Confirmed new min responses: ${newMin}`);
+        expect(newMin).to.equal(testMinimum);
         
         // Now test that it properly reverts
         await expect(priceAggregator.getMedianPrice("ETH-USD"))
@@ -616,7 +662,8 @@ describe("PriceAggregator Comprehensive Sepolia Tests", function () {
         
       } finally {
         // Reset to original value
-        await priceAggregator.setMinOracleResponses(originalMin);
+        const resetTx = await priceAggregator.setMinOracleResponses(originalMin);
+        await resetTx.wait(); // Wait for transaction confirmation
         console.log(`🔧 Reset min responses to ${originalMin}`);
       }
     });
