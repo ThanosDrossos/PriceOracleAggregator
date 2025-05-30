@@ -2,6 +2,8 @@
 
 Final project for UNAM class "Fundamentos Teóricos y Prácticos de Blockchain"
 
+Final project for UNAM class "Fundamentos Teóricos y Prácticos de Blockchain"
+
 A robust price oracle aggregator for DeFi applications that combines data from multiple sources (Chainlink, Uniswap V3, Tellor, and API3) to provide manipulation-resistant price feeds.
 
 ## Features
