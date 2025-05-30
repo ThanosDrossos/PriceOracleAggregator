@@ -327,34 +327,48 @@ constructor(
             
             return answer;
         } else if (src.oracleType == 1) {
-            // Uniswap
-            int256 twap = twapCalculator.getTWAP(IUniswapV3Oracle(src.oracle));
-            require(twap > 0, "Invalid Uniswap TWAP");
-            return twap;
+            // Uniswap - use getTWAP method from interface
+            IUniswapV3Oracle uniswapOracle = IUniswapV3Oracle(src.oracle);
+            uint256 price = uniswapOracle.getTWAP(
+                address(0), // tokenA (not used by our adapter)
+                address(0), // tokenB (not used by our adapter) 
+                3000,       // fee tier
+                0           // secondsAgo
+            );
+            require(price > 0, "Invalid Uniswap price");
+            return int256(price);
         } else if (src.oracleType == 2) {
-            // Enhanced Tellor with dispute checking and custom age
+            // Enhanced Tellor with simplified fallback logic
             TellorAdapter tellorAdapter = TellorAdapter(src.oracle);
             
-            // First try to get latest value with custom age requirement
+            // Try the primary method with age check
             try tellorAdapter.getLatestValueWithAge(src.heartbeatSeconds) returns (int256 tellorPrice, uint256 tellorTimestamp) {
                 if (tellorPrice > 0 && tellorTimestamp > 0) {
                     return tellorPrice;
                 }
             } catch {
-                // If custom age fails, try the standard method
-                try tellorAdapter.getLatestValue() returns (int256 standardPrice) {
-                    if (standardPrice > 0) {
-                        return standardPrice;
-                    }
-                } catch {
-                    // As a last resort, use the legacy method
-                    uint256 legacyPrice = tellorAdapter.retrieveData();
-                    require(legacyPrice > 0, "No valid Tellor data available");
-                    return int256(legacyPrice);
-                }
+                // Primary method failed, try fallback
             }
             
-            revert("No valid Tellor data");
+            // Fallback 1: Try standard getLatestValue
+            try tellorAdapter.getLatestValue() returns (int256 standardPrice) {
+                if (standardPrice > 0) {
+                    return standardPrice;
+                }
+            } catch {
+                // Standard method failed
+            }
+            
+            // Fallback 2: Try legacy retrieveData method
+            try tellorAdapter.retrieveData() returns (uint256 legacyPrice) {
+                if (legacyPrice > 0) {
+                    return int256(legacyPrice);
+                }
+            } catch {
+                // All methods failed
+            }
+            
+            revert("No valid Tellor data available");
         } else if (src.oracleType == 3) {
             // API3 - Call the adapter's getLatestValue method, not getLatestPrice
             API3Adapter api3Adapter = API3Adapter(src.oracle);
@@ -381,8 +395,15 @@ constructor(
             
             return (answer, updatedAt);
         } else if (src.oracleType == 1) {
-            // Uniswap - we don't get a timestamp from TWAP
-            return (twapCalculator.getTWAP(IUniswapV3Oracle(src.oracle)), block.timestamp);
+            // Uniswap - use getTWAP method from interface
+            IUniswapV3Oracle uniswapOracle = IUniswapV3Oracle(src.oracle);
+            uint256 uniswapPrice = uniswapOracle.getTWAP(
+                address(0), // tokenA (not used by our adapter)
+                address(0), // tokenB (not used by our adapter) 
+                3000,       // fee tier
+                0           // secondsAgo
+            );
+            return (int256(uniswapPrice), block.timestamp);
         } else if (src.oracleType == 2) {
             // Enhanced Tellor with actual timestamp
             TellorAdapter tellorAdapter = TellorAdapter(src.oracle);
@@ -693,8 +714,15 @@ constructor(
             
             return (answer, updatedAt);
         } else if (src.oracleType == 1) {
-            // Uniswap - we don't get a timestamp from TWAP
-            return (twapCalculator.getTWAP(IUniswapV3Oracle(src.oracle)), block.timestamp);
+            // Uniswap - use getTWAP method from interface
+            IUniswapV3Oracle uniswapOracle = IUniswapV3Oracle(src.oracle);
+            uint256 uniswapPrice = uniswapOracle.getTWAP(
+                address(0), // tokenA (not used by our adapter)
+                address(0), // tokenB (not used by our adapter) 
+                3000,       // fee tier
+                0           // secondsAgo
+            );
+            return (int256(uniswapPrice), block.timestamp);
         } else if (src.oracleType == 2) {
             // Enhanced Tellor with actual timestamp
             TellorAdapter tellorAdapter = TellorAdapter(src.oracle);

@@ -34,45 +34,28 @@ contract TellorAdapter is UsingTellor {
     }
     
     /**
-     * @dev Safely decode Tellor data with multiple format attempts
+     * @dev Safely decode Tellor data with simple fallback approach
      * @param _data The raw bytes data from Tellor
      * @return success Whether decoding was successful
      * @return value The decoded value (0 if unsuccessful)
      */
-    function _safeDecodeData(bytes memory _data) private view returns (bool success, uint256 value) {
+    function _safeDecodeData(bytes memory _data) private pure returns (bool success, uint256 value) {
         if (_data.length == 0) {
             return (false, 0);
         }
         
-        // Check if data length is valid for uint256 (32 bytes)
         if (_data.length == 32) {
-            // Try standard uint256 decoding
-            try this._tryDecodeUint256(_data) returns (uint256 result) {
+            // Simple uint256 decoding
+            uint256 result = abi.decode(_data, (uint256));
+            if (result > 0) {
                 return (true, result);
-            } catch {
-                // Try decoding as int256 and convert to uint256 if positive
-                try this._tryDecodeInt256(_data) returns (int256 signedResult) {
-                    if (signedResult > 0) {
-                        return (true, uint256(signedResult));
-                    }
-                } catch {
-                    // Use assembly for raw bytes32 conversion
-                    bytes32 bytesResult;
-                    assembly {
-                        bytesResult := mload(add(_data, 32))
-                    }
-                    return (true, uint256(bytesResult));
-                }
             }
-        }
-        
-        // For non-standard length data, try to extract what we can
-        if (_data.length >= 32) {
-            bytes32 bytesResult;
-            assembly {
-                bytesResult := mload(add(_data, 32))
+            
+            // If uint256 failed or returned 0, try int256
+            int256 signedResult = abi.decode(_data, (int256));
+            if (signedResult > 0) {
+                return (true, uint256(signedResult));
             }
-            return (true, uint256(bytesResult));
         }
         
         return (false, 0);
@@ -113,12 +96,54 @@ contract TellorAdapter is UsingTellor {
         // Check if data is in dispute
         if (_isInDispute(queryId, _timestampRetrieved)) return 0;
         
-        // Check data freshness (24 hours max age)
-        if (block.timestamp - _timestampRetrieved >= 24 hours) return 0;
-        
         // Safely decode and return the value
         (bool success, uint256 decodedValue) = _safeDecodeData(_value);
         return success ? int256(decodedValue) : int256(0);
+    }
+    
+    /**
+     * @dev Get the age of the latest data in seconds
+     * @return age The age of the latest data in seconds (0 if no data)
+     */
+    function getDataAge() external view returns (uint256) {
+        (, uint256 _timestampRetrieved) = _getDataBefore(queryId, block.timestamp);
+        
+        if (_timestampRetrieved == 0) return 0;
+        
+        return block.timestamp - _timestampRetrieved;
+    }
+    
+    /**
+     * @dev Get the latest value along with its age and status
+     * @return value The latest price value
+     * @return timestamp The timestamp of the data
+     * @return age The age of the data in seconds
+     * @return disputed Whether the data is disputed
+     */
+    function getLatestValueWithStatus() external view returns (
+        int256 value, 
+        uint256 timestamp, 
+        uint256 age, 
+        bool disputed
+    ) {
+        (bytes memory _value, uint256 _timestampRetrieved) = 
+            _getDataBefore(queryId, block.timestamp);
+        
+        if (_timestampRetrieved == 0) {
+            return (0, 0, 0, false);
+        }
+        
+        bool isDataDisputed = _isInDispute(queryId, _timestampRetrieved);
+        uint256 dataAge = block.timestamp - _timestampRetrieved;
+        
+        if (isDataDisputed) {
+            return (0, _timestampRetrieved, dataAge, true);
+        }
+        
+        (bool success, uint256 decodedValue) = _safeDecodeData(_value);
+        int256 finalValue = success ? int256(decodedValue) : int256(0);
+        
+        return (finalValue, _timestampRetrieved, dataAge, false);
     }
     
     /**
