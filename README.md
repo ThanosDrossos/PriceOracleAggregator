@@ -26,27 +26,35 @@ A robust price oracle aggregator for DeFi applications that combines data from m
 
 | Contract                | Address | Verification Status |
 |-------------------------|---------|-------------------|
-| PriceAggregator         | `0x519Fe3CCB10e265BD9e96b64E7F5EBfdAb7D8918` | ✅ Verified |
-| OracleLib               | `0x75f064e1487d73b958EEb7e3e6142D4A20cE7975` | ✅ Verified |
-| TWAPCalculator          | `0x18D81D882328574B4399723df3d2CE5AE2741fFF` | ✅ Verified |
-| UniswapV3GraphAdapter   | `0x0E731470eaf2a2A22dfddAaa7ff4f2E574475D95` | ✅ Verified |
+| PriceAggregator         | `0x369a056B626460280Cc9D8875E82b6b54385c502` | ✅ Verified |
+| OracleLib               | `0x6d6CE54F18eA21B2d519C88fA50516bf09C590Ae` | ✅ Verified |
+| TWAPCalculator          | `0xeCfc80226C67C040503Ae36cb1e297b72fe74623` | ✅ Verified |
+| UniswapV3GraphAdapter   | `0x6EBe2E5684696C4F63Fd125Ddaf87b9a55441CB7` | ✅ Verified |
 
 ### API3 Adapters
 
 | Contract                | Address | Price Feed | Status |
 |-------------------------|---------|------------|--------|
-| API3Adapter (ETH/USD)   | `0xb72459057A469F7ce6A53EdE19Afddc637F81e8d` | ETH/USD | ✅ Active |
-| API3Adapter (BTC/USD)   | `0xD3C5AcF2b1Dc8c91b66B609B8465ED4a3035f8cF` | BTC/USD | ✅ Active |
-| API3Adapter (UNI/USD)   | `0xa2e012B6111993AD74C998738a130df7e311EC39` | UNI/USD | ✅ Active |
+| API3Adapter (ETH/USD)   | `0xA5205e157153865f5f93fB6D407c9fA147498A75` | ETH/USD | ✅ Active |
+| API3Adapter (BTC/USD)   | `0x736C000687B80d8c93c02741be46FC8FfEa49c35` | BTC/USD | ✅ Active |
+| API3Adapter (UNI/USD)   | `0xacf67579871c57951713345E5AA9364ad63E9000` | UNI/USD | ✅ Active |
 
 ### Tellor Adapters
 
 | Contract                | Address | Price Feed | Status |
 |-------------------------|---------|------------|--------|
-| TellorAdapter (ETH/USD) | `0x07f1De074D264ABB20d2d9727d70D5Bc01F85E10` | ETH/USD | ✅ Active |
-| TellorAdapter (BTC/USD) | `0xeec1477203397442Ce0220c4Fb25EC51Bc088E72` | BTC/USD | ✅ Active |
-| TellorAdapter (LINK/USD)| `0x300bA297dB455E615B602884F9D337882Ad04994` | LINK/USD | ⚠️ No Data |
-| TellorAdapter (UNI/USD) | `0x5e2fd5CE662dB61DaB1a8321a2E7a781040F0056` | UNI/USD | ⚠️ No Data |
+| TellorAdapter (ETH/USD) | `0xB133D2dbaad38A9785F69D10a3EECAEF2d142365` | ETH/USD | ✅ Active |
+| TellorAdapter (BTC/USD) | `0xE8BcD7D38B642B6BB37AD9C36F6A1bBF6E7fb44D` | BTC/USD | ✅ Active |
+| TellorAdapter (LINK/USD)| `0x99EcFCFd363F4108706Ccc7113c3becC977116ce` | LINK/USD | ⚠️ No recent data |
+| TellorAdapter (UNI/USD) | `0x2d55152A8840479E0Bc2b25196B21e5E64B1D4De` | UNI/USD | ⚠️ No recent data |
+
+### Chainlink Price Feeds
+
+| Contract                | Address | Price Feed | Status |
+|-------------------------|---------|------------|--------|
+| Chainlinlk ETH/USD   | `0x694AA1769357215DE4FAC081bf1f309aDC325306` | ETH/USD | ✅ Active |
+| Chainlink BTC/USD | `0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43` | BTC/USD | ✅ Active |
+| Chainlink LINK/USD | `0xc59E3633BAAC79493d908e63626716e204A45EdF` | LINK/USD | ✅ Active |
 
 > **Note**: All contracts are deployed and verified on Sepolia Etherscan. Some Tellor feeds may have limited data availability on testnet.
 
@@ -192,10 +200,10 @@ getETHPrice();
 
 ### 1. Deploy to Sepolia Testnet
 
-Run the complete deployment script:
+Run the complete test and deployment script:
 
 ```bash
-npx hardhat run scripts/deploy.js --network sepolia
+npx hardhat test test/PriceAggregator.comprehensive.sepolia.test.js --network sepolia
 ```
 
 This will deploy:
@@ -213,14 +221,6 @@ After deployment, update the Uniswap V3 price feeds with data from The Graph:
 ```bash
 export UNISWAP_ADAPTER_ADDRESS=<deployed_adapter_address>
 npx hardhat run scripts/updateUniswapPrices.js --network sepolia
-```
-
-### 3. Verify Contracts (Optional)
-
-The deployment script will output verification commands. Run them to verify contracts on Etherscan:
-
-```bash
-npx hardhat verify --network sepolia <CONTRACT_ADDRESS> [CONSTRUCTOR_ARGS]
 ```
 
 ### 4. Test Local Deployment
