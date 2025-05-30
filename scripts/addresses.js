@@ -46,7 +46,8 @@ const chainlinkLINKUSD = "0xc59E3633BAAC79493d908e63626716e204A45EdF";
 // API3
 
 API3ReaderProxyETHUSD = "0x5b0cf2b36a65a6BB085D501B971e4c102B9Cd473";
-
+API3ReaderProxyBTCUSD = "0xCAc4d304032a46C8D0947396B7cBb07986826A36";
+API3ReaderProxyUNIUSD = "0x9871FB53FFB5a7d38ef094390E450b90d705C83B";
 
 
 // Export all variables for use in other scripts
@@ -80,7 +81,8 @@ module.exports = {
     chainlinkLINKUSD,
     
     // API3
-
-    API3ReaderProxyETHUSD
+    API3ReaderProxyETHUSD,
+    API3ReaderProxyBTCUSD,
+    API3ReaderProxyUNIUSD
 
 };

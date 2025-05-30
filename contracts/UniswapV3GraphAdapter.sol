@@ -89,7 +89,7 @@ contract UniswapV3GraphAdapter is IUniswapV3Oracle {
         address tokenA,
         address tokenB,
         uint24 fee,
-        uint32 secondsAgo
+        uint32 /* secondsAgo */
     ) external view override returns (uint256 price) {
         bytes32 pairHash = keccak256(abi.encodePacked(tokenA, tokenB, fee));
         PriceData memory data = priceData[pairHash];
@@ -116,7 +116,7 @@ contract UniswapV3GraphAdapter is IUniswapV3Oracle {
      * Real data from TheGraph doesn't work with this on-chain model, so we return
      * mock data that will produce expected behavior in the TWAPCalculator
      */
-    function observe(uint32[] calldata secondsAgos) external view override returns (
+    function observe(uint32[] calldata /* secondsAgos */) external view override returns (
         int56[] memory tickCumulatives,
         uint160[] memory secondsPerLiquidityCumulativeX128s
     ) {
@@ -139,5 +139,39 @@ contract UniswapV3GraphAdapter is IUniswapV3Oracle {
     function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != address(0), "New owner cannot be zero address");
         owner = newOwner;
+    }
+
+    /**
+     * @notice Fallback method to maintain compatibility with the PriceAggregator interface
+     */
+    function retrieveData() external view returns (uint256) {
+        // For compatibility, we'll return a price for the default ETH-USDC pair
+        // In a real implementation, you might want to specify which pair to get
+        bytes32 defaultHash = keccak256(abi.encodePacked(
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH
+            address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48), // USDC
+            uint24(3000) // 0.3% fee tier
+        ));
+        
+        PriceData memory data = priceData[defaultHash];
+        
+        if (data.lastUpdated == 0) return 0;
+        if (block.timestamp - data.lastUpdated > 1 hours) return 0;
+        
+        return data.price;
+    }
+
+    /**
+     * @notice Get the timestamp of the last update for compatibility
+     * @return The timestamp of the last price update for the default pair
+     */
+    function getLastUpdateTimestamp() external view returns (uint256) {
+        bytes32 defaultHash = keccak256(abi.encodePacked(
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH
+            address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48), // USDC
+            uint24(3000) // 0.3% fee tier
+        ));
+        
+        return priceData[defaultHash].lastUpdated;
     }
 }

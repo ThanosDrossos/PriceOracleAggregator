@@ -3,8 +3,9 @@ pragma solidity ^0.8.0;
 
 import "./interfaces/IAggregatorV3.sol";
 import "./interfaces/IAPI3.sol";
-import "./interfaces/ITellor_old.sol";
 import "./interfaces/IUniswapV3Oracle.sol";
+import "./TellorAdapter.sol";
+import "./API3Adapter.sol";
 import "./utils/OracleLib.sol";
 import "./utils/TWAPCalculator.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -57,6 +58,7 @@ contract PriceAggregator is Ownable, ReentrancyGuard {
     event PriceUpdated(string pair, int256 medianPrice, int256 weightedPrice);
     event AssetPairAdded(string symbol, string baseAsset, string quoteAsset);
     event AssetPairUpdated(string symbol, bool active);
+    event TellorDataDisputed(address indexed oracle, uint256 timestamp);
 
 constructor(
         OracleSource[] memory _sources,
@@ -170,7 +172,50 @@ constructor(
     }
 
     /**
-     * @notice Get prices from all sources for a specific asset pair
+     * @notice Get prices from all sources for a specific asset pair with enhanced Tellor data
+     * @param pairSymbol The symbol of the asset pair
+     * @return prices Array of prices from each source
+     * @return sourceTypes Array of oracle types corresponding to each price
+     * @return descriptions Array of descriptions for each source
+     * @return timestamps Array of timestamps for each price update
+     * @return disputeStatus Array indicating if Tellor data is disputed
+     */
+    function getAllPricesWithStatus(string memory pairSymbol) external view returns (
+        int256[] memory prices, 
+        uint8[] memory sourceTypes,
+        string[] memory descriptions,
+        uint256[] memory timestamps,
+        bool[] memory disputeStatus
+    ) {
+        AssetPair storage pair = assetPairs[pairSymbol];
+        require(pair.active, "Asset pair not active");
+        
+        uint256 length = pair.sources.length;
+        prices = new int256[](length);
+        sourceTypes = new uint8[](length);
+        descriptions = new string[](length);
+        timestamps = new uint256[](length);
+        disputeStatus = new bool[](length);
+        
+        for (uint256 i = 0; i < length; i++) {
+            uint256 sourceIndex = getSourceIndex(pair.sources[i]);
+            OracleSource memory src = sources[sourceIndex];
+            
+            // Get raw price and timestamp with dispute status
+            (int256 price, uint256 timestamp, bool isDisputed) = getRawPriceTimestampAndDispute(src);
+            
+            prices[i] = normalizePrice(price, src.decimals);
+            sourceTypes[i] = src.oracleType;
+            descriptions[i] = src.description;
+            timestamps[i] = timestamp;
+            disputeStatus[i] = isDisputed;
+        }
+        
+        return (prices, sourceTypes, descriptions, timestamps, disputeStatus);
+    }
+
+    /**
+     * @notice Get prices from all sources for a specific asset pair (backward compatibility)
      * @param pairSymbol The symbol of the asset pair
      * @return prices Array of prices from each source
      * @return sourceTypes Array of oracle types corresponding to each price
@@ -209,7 +254,35 @@ constructor(
     }
 
     /**
-     * @notice Fetches price from a specific oracle source
+     * @notice Get multiple historical values for Tellor sources for trend analysis
+     * @param tellorAdapter The TellorAdapter address
+     * @param maxAge Maximum age in seconds to look back
+     * @param maxCount Maximum number of values to return
+     * @return values Array of historical price values
+     * @return timestamps Array of corresponding timestamps
+     */
+    function getTellorHistoricalData(address tellorAdapter, uint256 maxAge, uint256 maxCount) 
+        external 
+        view 
+        returns (uint256[] memory values, uint256[] memory timestamps) 
+    {
+        require(tellorAdapter != address(0), "Invalid Tellor adapter");
+        
+        // Verify this is actually a Tellor source
+        bool isTellorSource = false;
+        for (uint256 i = 0; i < sources.length; i++) {
+            if (sources[i].oracle == tellorAdapter && sources[i].oracleType == 2) {
+                isTellorSource = true;
+                break;
+            }
+        }
+        require(isTellorSource, "Not a registered Tellor source");
+        
+        return TellorAdapter(tellorAdapter).getMultipleValues(maxAge, maxCount);
+    }
+
+    /**
+     * @notice Fetches price from a specific oracle source with enhanced Tellor support
      * @param src Oracle source details
      * @return The raw price from the oracle
      */
@@ -217,11 +290,10 @@ constructor(
         if (src.oracleType == 0) {
             // Chainlink
             (
-                uint80 roundID, 
+                , 
                 int256 answer, 
-                uint256 startedAt, 
+                , 
                 uint256 updatedAt, 
-                uint80 answeredInRound
             ) = IAggregatorV3(src.oracle).latestRoundData();
             
             require(updatedAt > 0, "Chainlink price not updated");
@@ -235,13 +307,33 @@ constructor(
             require(twap > 0, "Invalid Uniswap TWAP");
             return twap;
         } else if (src.oracleType == 2) {
-            // Tellor
-            int256 price = ITellorOld(src.oracle).getLatestValue();
-            require(price > 0, "Invalid Tellor price");
-            return price;
+            // Enhanced Tellor with dispute checking and custom age
+            TellorAdapter tellorAdapter = TellorAdapter(src.oracle);
+            
+            // First try to get latest value with custom age requirement
+            try tellorAdapter.getLatestValueWithAge(src.heartbeatSeconds) returns (int256 tellorPrice, uint256 tellorTimestamp) {
+                if (tellorPrice > 0 && tellorTimestamp > 0) {
+                    return tellorPrice;
+                }
+            } catch {
+                // If custom age fails, try the standard method
+                try tellorAdapter.getLatestValue() returns (int256 standardPrice) {
+                    if (standardPrice > 0) {
+                        return standardPrice;
+                    }
+                } catch {
+                    // As a last resort, use the legacy method
+                    uint256 legacyPrice = tellorAdapter.retrieveData();
+                    require(legacyPrice > 0, "No valid Tellor data available");
+                    return int256(legacyPrice);
+                }
+            }
+            
+            revert("No valid Tellor data");
         } else if (src.oracleType == 3) {
-            // API3
-            int256 price = IAPI3(src.oracle).getLatestPrice();
+            // API3 - Call the adapter's getLatestValue method, not getLatestPrice
+            API3Adapter api3Adapter = API3Adapter(src.oracle);
+            int256 price = api3Adapter.getLatestValue();
             require(price > 0, "Invalid API3 price");
             return price;
         }
@@ -250,17 +342,16 @@ constructor(
     }
 
     /**
-     * @notice Returns raw price and timestamp from a source
+     * @notice Returns raw price and timestamp from a source with enhanced Tellor support
      */
     function getRawPriceAndTimestamp(OracleSource memory src) internal view returns (int256 price, uint256 timestamp) {
         if (src.oracleType == 0) {
             // Chainlink
             (
-                uint80 roundID, 
+                , 
                 int256 answer, 
-                uint256 startedAt, 
+                , 
                 uint256 updatedAt, 
-                uint80 answeredInRound
             ) = IAggregatorV3(src.oracle).latestRoundData();
             
             return (answer, updatedAt);
@@ -268,14 +359,139 @@ constructor(
             // Uniswap - we don't get a timestamp from TWAP
             return (twapCalculator.getTWAP(IUniswapV3Oracle(src.oracle)), block.timestamp);
         } else if (src.oracleType == 2) {
-            // Tellor
-            return (ITellorOld(src.oracle).getLatestValue(), block.timestamp);
+            // Enhanced Tellor with actual timestamp
+            TellorAdapter tellorAdapter = TellorAdapter(src.oracle);
+            
+            try tellorAdapter.getLatestValueWithAge(src.heartbeatSeconds) returns (int256 tellorPrice, uint256 tellorTimestamp) {
+                return (tellorPrice, tellorTimestamp);
+            } catch {
+                // Fallback to legacy method
+                uint256 legacyPrice = tellorAdapter.retrieveData();
+                uint256 lastTimestamp = tellorAdapter.getLastUpdateTimestamp();
+                return (int256(legacyPrice), lastTimestamp);
+            }
         } else if (src.oracleType == 3) {
-            // API3
-            return (IAPI3(src.oracle).getLatestPrice(), block.timestamp);
+            // API3 - Call the adapter's getLatestValueWithAge method
+            API3Adapter api3Adapter = API3Adapter(src.oracle);
+            try api3Adapter.getLatestValueWithAge(src.heartbeatSeconds) returns (int256 api3Price, uint256 api3Timestamp) {
+                return (api3Price, api3Timestamp);
+            } catch {
+                // Fallback to basic method
+                int256 api3Price = api3Adapter.getLatestValue();
+                uint256 api3Timestamp = api3Adapter.getLastUpdateTimestamp();
+                return (api3Price, api3Timestamp);
+            }
         }
         
         revert("Invalid oracle type");
+    }
+
+    /**
+     * @notice Returns raw price, timestamp, and dispute status from a source
+     */
+    function getRawPriceTimestampAndDispute(OracleSource memory src) internal view returns (int256 price, uint256 timestamp, bool isDisputed) {
+        if (src.oracleType == 2) {
+            // Enhanced Tellor with dispute checking
+            TellorAdapter tellorAdapter = TellorAdapter(src.oracle);
+            
+            try tellorAdapter.getLatestValueWithAge(src.heartbeatSeconds) returns (int256 tellorPrice, uint256 tellorTimestamp) {
+                bool disputed = tellorAdapter.isDisputed(tellorTimestamp);
+                return (tellorPrice, tellorTimestamp, disputed);
+            } catch {
+                // Fallback to legacy method
+                uint256 legacyPrice = tellorAdapter.retrieveData();
+                uint256 lastTimestamp = tellorAdapter.getLastUpdateTimestamp();
+                bool disputed = false;
+                if (lastTimestamp > 0) {
+                    disputed = tellorAdapter.isDisputed(lastTimestamp);
+                }
+                return (int256(legacyPrice), lastTimestamp, disputed);
+            }
+        } else {
+            // For non-Tellor sources, get price and timestamp normally
+            (int256 sourcePrice, uint256 sourceTimestamp) = getRawPriceAndTimestamp(src);
+            return (sourcePrice, sourceTimestamp, false); // Non-Tellor sources don't have dispute mechanism
+        }
+    }
+
+    /**
+     * @notice Get detailed Tellor analytics for a specific adapter
+     * @param tellorAdapter The TellorAdapter address
+     * @return valueCount Total number of values submitted
+     * @return lastReporter Address of the last reporter
+     * @return lastTimestamp Timestamp of last update
+     * @return isLastDisputed Whether the last value is disputed
+     */
+    function getTellorAnalytics(address tellorAdapter) external view returns (
+        uint256 valueCount,
+        address lastReporter,
+        uint256 lastTimestamp,
+        bool isLastDisputed
+    ) {
+        require(tellorAdapter != address(0), "Invalid Tellor adapter");
+        
+        // Verify this is actually a Tellor source
+        bool isTellorSource = false;
+        for (uint256 i = 0; i < sources.length; i++) {
+            if (sources[i].oracle == tellorAdapter && sources[i].oracleType == 2) {
+                isTellorSource = true;
+                break;
+            }
+        }
+        require(isTellorSource, "Not a registered Tellor source");
+        
+        TellorAdapter adapter = TellorAdapter(tellorAdapter);
+        
+        valueCount = adapter.getValueCount();
+        lastTimestamp = adapter.getLastUpdateTimestamp();
+        
+        if (lastTimestamp > 0) {
+            lastReporter = adapter.getReporter(lastTimestamp);
+            isLastDisputed = adapter.isDisputed(lastTimestamp);
+        }
+        
+        return (valueCount, lastReporter, lastTimestamp, isLastDisputed);
+    }
+
+    /**
+     * @notice Check if any Tellor sources have disputed data
+     * @param pairSymbol The asset pair to check
+     * @return hasDisputedData Whether any Tellor source has disputed data
+     * @return disputedSources Array of disputed Tellor source addresses
+     */
+    function checkTellorDisputes(string memory pairSymbol) external view returns (
+        bool hasDisputedData,
+        address[] memory disputedSources
+    ) {
+        AssetPair storage pair = assetPairs[pairSymbol];
+        require(pair.active, "Asset pair not active");
+        
+        address[] memory tempDisputed = new address[](pair.sources.length);
+        uint256 disputedCount = 0;
+        
+        for (uint256 i = 0; i < pair.sources.length; i++) {
+            uint256 sourceIndex = getSourceIndex(pair.sources[i]);
+            OracleSource memory src = sources[sourceIndex];
+            
+            if (src.oracleType == 2) { // Tellor
+                TellorAdapter adapter = TellorAdapter(src.oracle);
+                uint256 lastTimestamp = adapter.getLastUpdateTimestamp();
+                
+                if (lastTimestamp > 0 && adapter.isDisputed(lastTimestamp)) {
+                    tempDisputed[disputedCount] = src.oracle;
+                    disputedCount++;
+                    hasDisputedData = true;
+                }
+            }
+        }
+        
+        // Resize the array to actual disputed count
+        disputedSources = new address[](disputedCount);
+        for (uint256 i = 0; i < disputedCount; i++) {
+            disputedSources[i] = tempDisputed[i];
+        }
+        
+        return (hasDisputedData, disputedSources);
     }
 
     /**
