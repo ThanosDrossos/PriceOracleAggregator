@@ -31,8 +31,6 @@ A robust price oracle aggregator for DeFi applications that combines data from m
 | TellorAdapter (BTC-USD) | `0x2E977ADc4A60027b846AAaea13d156BEEbBdd394` | ✅ Verified |
 | TellorAdapter (LINK-USD)| `0x5b116a49D06afc089538391A36DaA5bAfFe3EB78` | ✅ Verified |
 
-> **Note**: Replace the addresses above with actual deployed addresses after running the deployment script. All contracts are verified on Sepolia Etherscan.
-
 ## Quick Start
 
 ### Option 1: Using Already Deployed Contracts
