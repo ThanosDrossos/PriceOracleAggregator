@@ -101,13 +101,16 @@ constructor(
         require(pair.active, "Asset pair not active");
         require(pair.sources.length > 0, "No sources for asset pair");
         
-        int256[] memory prices = new int256[](pair.sources.length);
+        int256[] memory allPrices = new int256[](pair.sources.length);
         uint256 validPrices = 0;
         
         for (uint256 i = 0; i < pair.sources.length; i++) {
-            try this.fetchPriceFromSource(sources[getSourceIndex(pair.sources[i])]) returns (int256 price) {
+            uint256 sourceIndex = getSourceIndex(pair.sources[i]);
+            // Copy struct to memory to avoid read-only error
+            OracleSource memory src = sources[sourceIndex];
+            try this.fetchPriceFromSource(src) returns (int256 price) {
                 if (price > 0) {
-                    prices[validPrices] = normalizePrice(price, sources[getSourceIndex(pair.sources[i])].decimals);
+                    allPrices[validPrices] = normalizePrice(price, src.decimals);
                     validPrices++;
                 }
             } catch {
@@ -117,12 +120,13 @@ constructor(
         
         require(validPrices >= minOracleResponses, "Insufficient valid prices");
         
-        // Resize the array to only include valid prices
-        assembly {
-            mstore(prices, validPrices)
+        // Create a new array with only valid prices
+        int256[] memory validPricesArray = new int256[](validPrices);
+        for (uint256 i = 0; i < validPrices; i++) {
+            validPricesArray[i] = allPrices[i];
         }
         
-        int256 medianPrice = oracleLib.getMedian(prices);
+        int256 medianPrice = oracleLib.getMedian(validPricesArray);
         return medianPrice;
     }
 
@@ -135,27 +139,37 @@ constructor(
         require(pair.active, "Asset pair not active");
         require(pair.sources.length > 0, "No sources for asset pair");
         
-        int256 sum = 0;
-        uint256 totalWeight = 0;
-        uint256 validSources = 0;
+        int256[] memory validPrices = new int256[](pair.sources.length);
+        uint256[] memory validWeights = new uint256[](pair.sources.length);
+        uint256 validCount = 0;
         
         for (uint256 i = 0; i < pair.sources.length; i++) {
             uint256 sourceIndex = getSourceIndex(pair.sources[i]);
-            try this.fetchPriceFromSource(sources[sourceIndex]) returns (int256 price) {
+            // Copy struct to memory to avoid read-only error
+            OracleSource memory src = sources[sourceIndex];
+            try this.fetchPriceFromSource(src) returns (int256 price) {
                 if (price > 0) {
-                    int256 normalizedPrice = normalizePrice(price, sources[sourceIndex].decimals);
-                    sum += normalizedPrice * int256(sources[sourceIndex].weight);
-                    totalWeight += sources[sourceIndex].weight;
-                    validSources++;
+                    validPrices[validCount] = normalizePrice(price, src.decimals);
+                    validWeights[validCount] = src.weight;
+                    validCount++;
                 }
             } catch {
                 // Skip failed oracle
             }
         }
         
-        require(validSources >= minOracleResponses, "Insufficient valid sources");
-        require(totalWeight > 0, "No weight");
+        require(validCount >= minOracleResponses, "Insufficient valid sources");
         
+        // Calculate weighted average
+        int256 sum = 0;
+        uint256 totalWeight = 0;
+        
+        for (uint256 i = 0; i < validCount; i++) {
+            sum += validPrices[i] * int256(validWeights[i]);
+            totalWeight += validWeights[i];
+        }
+        
+        require(totalWeight > 0, "No weight");
         return sum / int256(totalWeight);
     }
 

@@ -1,7 +1,7 @@
 const { ethers } = require("hardhat");
 const { expect } = require("chai");
 
-// import addresses form address file
+// import addresses from address file
 const {tellorContract: TELLOR_ADDRESS,
     tellorAdapterContract,
     tellorQueryETHUSD,
@@ -9,7 +9,7 @@ const {tellorContract: TELLOR_ADDRESS,
     tellorQueryLINKUSD,
     tellorQueryBTCUSD,
     tellorToken,
-    tellorOracle} = require('./addresses');
+    tellorOracle} = require('../scripts/addresses');
 
 describe("Tellor Oracle Interaction", function () {
   // Increase timeout for testnet interactions

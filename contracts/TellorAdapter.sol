@@ -15,6 +15,7 @@ contract TellorAdapter is UsingTellor {
     // Events for better tracking
     event PriceRetrieved(uint256 value, uint256 timestamp);
     event StaleDataWarning(uint256 timestamp, uint256 age);
+    event DecodingError(bytes data, string reason);
     
     /**
      * @dev Constructor to set the Tellor oracle address and query parameters
@@ -33,6 +34,72 @@ contract TellorAdapter is UsingTellor {
     }
     
     /**
+     * @dev Safely decode Tellor data with multiple format attempts
+     * @param _data The raw bytes data from Tellor
+     * @return success Whether decoding was successful
+     * @return value The decoded value (0 if unsuccessful)
+     */
+    function _safeDecodeData(bytes memory _data) private view returns (bool success, uint256 value) {
+        if (_data.length == 0) {
+            return (false, 0);
+        }
+        
+        // Check if data length is valid for uint256 (32 bytes)
+        if (_data.length == 32) {
+            // Try standard uint256 decoding
+            try this._tryDecodeUint256(_data) returns (uint256 result) {
+                return (true, result);
+            } catch {
+                // Try decoding as int256 and convert to uint256 if positive
+                try this._tryDecodeInt256(_data) returns (int256 signedResult) {
+                    if (signedResult > 0) {
+                        return (true, uint256(signedResult));
+                    }
+                } catch {
+                    // Use assembly for raw bytes32 conversion
+                    bytes32 bytesResult;
+                    assembly {
+                        bytesResult := mload(add(_data, 32))
+                    }
+                    return (true, uint256(bytesResult));
+                }
+            }
+        }
+        
+        // For non-standard length data, try to extract what we can
+        if (_data.length >= 32) {
+            bytes32 bytesResult;
+            assembly {
+                bytesResult := mload(add(_data, 32))
+            }
+            return (true, uint256(bytesResult));
+        }
+        
+        return (false, 0);
+    }
+    
+    /**
+     * @dev Helper function to try decoding as uint256
+     */
+    function _tryDecodeUint256(bytes memory _data) external pure returns (uint256) {
+        return abi.decode(_data, (uint256));
+    }
+    
+    /**
+     * @dev Helper function to try decoding as int256
+     */
+    function _tryDecodeInt256(bytes memory _data) external pure returns (int256) {
+        return abi.decode(_data, (int256));
+    }
+    
+    /**
+     * @dev Helper function to try decoding as bytes32
+     */
+    function _tryDecodeBytes32(bytes memory _data) external pure returns (bytes32) {
+        return abi.decode(_data, (bytes32));
+    }
+    
+    /**
      * @dev Get the latest price value from Tellor with dispute checking
      * @return value The latest price value in USD
      */
@@ -44,14 +111,14 @@ contract TellorAdapter is UsingTellor {
         if (_timestampRetrieved == 0) return 0;
         
         // Check if data is in dispute
-        require(!_isInDispute(queryId, _timestampRetrieved), "Data is under dispute");
+        if (_isInDispute(queryId, _timestampRetrieved)) return 0;
         
         // Check data freshness (24 hours max age)
-        require(block.timestamp - _timestampRetrieved < 24 hours, "Data is stale");
+        if (block.timestamp - _timestampRetrieved >= 24 hours) return 0;
         
-        // Decode and return the value
-        uint256 decodedValue = abi.decode(_value, (uint256));
-        return int256(decodedValue);
+        // Safely decode and return the value
+        (bool success, uint256 decodedValue) = _safeDecodeData(_value);
+        return success ? int256(decodedValue) : int256(0);
     }
     
     /**
@@ -67,13 +134,13 @@ contract TellorAdapter is UsingTellor {
         if (_timestampRetrieved == 0) return (0, 0);
         
         // Check if data is in dispute
-        require(!_isInDispute(queryId, _timestampRetrieved), "Data is under dispute");
+        if (_isInDispute(queryId, _timestampRetrieved)) return (0, 0);
         
         // Check custom age requirement
-        require(block.timestamp - _timestampRetrieved < _maxAge, "Data exceeds maximum age");
+        if (block.timestamp - _timestampRetrieved >= _maxAge) return (0, 0);
         
-        uint256 decodedValue = abi.decode(_value, (uint256));
-        return (int256(decodedValue), _timestampRetrieved);
+        (bool success, uint256 decodedValue) = _safeDecodeData(_value);
+        return success ? (int256(decodedValue), _timestampRetrieved) : (int256(0), 0);
     }
     
     /**
@@ -152,7 +219,8 @@ contract TellorAdapter is UsingTellor {
         // Don't return disputed data
         if (_isInDispute(queryId, _timestampRetrieved)) return 0;
         
-        return abi.decode(_value, (uint256));
+        (bool success, uint256 decodedValue) = _safeDecodeData(_value);
+        return success ? decodedValue : 0;
     }
     
     /**
